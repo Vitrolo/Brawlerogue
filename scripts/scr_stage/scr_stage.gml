@@ -72,7 +72,9 @@ function stage_build() {
         banner_timer: 0
     };
 
-    instance_create_depth(0, 0, 10000, obj_stage);
+    // A camada Background das salas tem depth 100 e e opaca; 99 desenha o
+    // cenario por cima dela, mantendo os atores (depth 0) na frente.
+    instance_create_depth(0, 0, 99, obj_stage);
     instance_create_depth(_def.player_spawn.x, _def.player_spawn.y, 0, obj_player);
 
     for (var _i = 0; _i < array_length(_def.doors); _i++) {
