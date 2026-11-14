@@ -1,0 +1,150 @@
+{
+  "group_id": "20fe2ee0-d009-4712-a7cf-e05c3ae368f3",
+  "states": [
+    {
+      "character": {
+        "id": "b1c6ba2c-c9f2-445f-8fca-752b5572b6bc",
+        "name": "Idle",
+        "prompt": "street brawler hero, spiky red hair, crimson sleeveless jacket, yellow baggy pants, white sneakers, fingerless gloves, athletic build, fighting game character",
+        "size": {
+          "width": 80,
+          "height": 80
+        },
+        "template_id": "mannequin",
+        "directions": 4,
+        "view": "side",
+        "created_at": "2026-11-14T12:05:10.226522+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "west": "Idle/rotations/west.png",
+          "east": "Idle/rotations/east.png",
+          "north": "Idle/rotations/north.png"
+        },
+        "animations": {
+          "idle": {
+            "east": [
+              "Idle/animations/idle/east/frame_000.png",
+              "Idle/animations/idle/east/frame_001.png",
+              "Idle/animations/idle/east/frame_002.png",
+              "Idle/animations/idle/east/frame_003.png"
+            ]
+          },
+          "flykick": {
+            "east": [
+              "Idle/animations/flykick/east/frame_000.png",
+              "Idle/animations/flykick/east/frame_001.png",
+              "Idle/animations/flykick/east/frame_002.png",
+              "Idle/animations/flykick/east/frame_003.png",
+              "Idle/animations/flykick/east/frame_004.png",
+              "Idle/animations/flykick/east/frame_005.png"
+            ]
+          },
+          "spin": {
+            "east": [
+              "Idle/animations/spin/east/frame_000.png",
+              "Idle/animations/spin/east/frame_001.png",
+              "Idle/animations/spin/east/frame_002.png",
+              "Idle/animations/spin/east/frame_003.png"
+            ]
+          },
+          "walk": {
+            "east": [
+              "Idle/animations/walk/east/frame_000.png",
+              "Idle/animations/walk/east/frame_001.png",
+              "Idle/animations/walk/east/frame_002.png",
+              "Idle/animations/walk/east/frame_003.png",
+              "Idle/animations/walk/east/frame_004.png",
+              "Idle/animations/walk/east/frame_005.png"
+            ]
+          },
+          "kick": {
+            "east": [
+              "Idle/animations/kick/east/frame_000.png",
+              "Idle/animations/kick/east/frame_001.png",
+              "Idle/animations/kick/east/frame_002.png",
+              "Idle/animations/kick/east/frame_003.png",
+              "Idle/animations/kick/east/frame_004.png",
+              "Idle/animations/kick/east/frame_005.png",
+              "Idle/animations/kick/east/frame_006.png"
+            ]
+          },
+          "fall": {
+            "east": [
+              "Idle/animations/fall/east/frame_000.png",
+              "Idle/animations/fall/east/frame_001.png",
+              "Idle/animations/fall/east/frame_002.png",
+              "Idle/animations/fall/east/frame_003.png",
+              "Idle/animations/fall/east/frame_004.png",
+              "Idle/animations/fall/east/frame_005.png",
+              "Idle/animations/fall/east/frame_006.png"
+            ]
+          },
+          "getup": {
+            "east": [
+              "Idle/animations/getup/east/frame_000.png",
+              "Idle/animations/getup/east/frame_001.png",
+              "Idle/animations/getup/east/frame_002.png",
+              "Idle/animations/getup/east/frame_003.png",
+              "Idle/animations/getup/east/frame_004.png"
+            ]
+          },
+          "jab": {
+            "east": [
+              "Idle/animations/jab/east/frame_000.png",
+              "Idle/animations/jab/east/frame_001.png",
+              "Idle/animations/jab/east/frame_002.png"
+            ]
+          },
+          "slide": {
+            "east": [
+              "Idle/animations/slide/east/frame_000.png",
+              "Idle/animations/slide/east/frame_001.png",
+              "Idle/animations/slide/east/frame_002.png",
+              "Idle/animations/slide/east/frame_003.png",
+              "Idle/animations/slide/east/frame_004.png",
+              "Idle/animations/slide/east/frame_005.png"
+            ]
+          },
+          "hurt": {
+            "east": [
+              "Idle/animations/hurt/east/frame_000.png",
+              "Idle/animations/hurt/east/frame_001.png",
+              "Idle/animations/hurt/east/frame_002.png",
+              "Idle/animations/hurt/east/frame_003.png",
+              "Idle/animations/hurt/east/frame_004.png",
+              "Idle/animations/hurt/east/frame_005.png"
+            ]
+          },
+          "jump": {
+            "east": [
+              "Idle/animations/jump/east/frame_000.png",
+              "Idle/animations/jump/east/frame_001.png",
+              "Idle/animations/jump/east/frame_002.png",
+              "Idle/animations/jump/east/frame_003.png",
+              "Idle/animations/jump/east/frame_004.png",
+              "Idle/animations/jump/east/frame_005.png",
+              "Idle/animations/jump/east/frame_006.png",
+              "Idle/animations/jump/east/frame_007.png",
+              "Idle/animations/jump/east/frame_008.png"
+            ]
+          },
+          "cross": {
+            "east": [
+              "Idle/animations/cross/east/frame_000.png",
+              "Idle/animations/cross/east/frame_001.png",
+              "Idle/animations/cross/east/frame_002.png",
+              "Idle/animations/cross/east/frame_003.png",
+              "Idle/animations/cross/east/frame_004.png",
+              "Idle/animations/cross/east/frame_005.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-11-14T12:27:03.135472"
+}

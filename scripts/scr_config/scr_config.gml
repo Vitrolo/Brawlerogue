@@ -272,7 +272,7 @@ function config_enemies_init() {
     CFG.enemies[$ "brute"] = {
         name: "Bruto",
         ai: "basic",
-        scale: 1.2,
+        scale: 1,
         grabbable: false,
         hp_max: 60,
         speed_x: 0.55,
@@ -315,7 +315,7 @@ function config_enemies_init() {
         speed_y: 0.7,
         body_w: 13,
         body_h: 56,
-        scale: 1.4,            // o placeholder e o boneco comum ampliado
+        scale: 1.25,           // sprite de 64 px ampliado para ficar maior que o bruto
         think_min: 0,          // lidos pela criacao comum de inimigos; o chefe nao usa
         think_max: 0,
         intro_frames: 90,
