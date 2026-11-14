@@ -17,7 +17,10 @@ function choice_open(_title, _options, _can_cancel, _keep_open, _source) {
 
 function choice_close(_mark_used) {
     var _ch = global.choice;
-    if (!is_undefined(_ch) && _mark_used && instance_exists(_ch.source)) _ch.source.used = true;
+    if (!is_undefined(_ch) && _mark_used && instance_exists(_ch.source)) {
+        _ch.source.used = true;
+        interact_persist_state(_ch.source);
+    }
     global.choice = undefined;
     global.flow.state = FLOW.PLAY;
     with (obj_player) {
@@ -60,6 +63,10 @@ function choice_update() {
         }
         if (_ch.keep_open) {
             array_delete(_ch.options, _ch.index, 1); // item vendido sai da prateleira
+            if (instance_exists(_ch.source)) {
+                _ch.source.stock = _ch.options;
+                interact_persist_state(_ch.source);
+            }
             if (array_length(_ch.options) == 0) {
                 choice_close(true);
             } else {
@@ -196,14 +203,16 @@ function choice_draw() {
 // ------------------------------------------------------ objetos interativos
 
 /// Cria os interativos da sala atual (chamado por stage_build).
-function interact_spawn_for_stage(_def, _seed) {
+function interact_spawn_for_stage(_def, _seed, _persist = undefined) {
     var _cx = _def.width * 0.5;
     var _cy = _def.floor_top + 26;
+    var _used = !is_undefined(_persist) && _persist.used;
+    var _stock = is_undefined(_persist) ? undefined : _persist.stock;
     switch (_def.kind) {
-        case "rest":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "rest", seed: _seed }); break;
-        case "reward": instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "chest", seed: _seed }); break;
-        case "shop":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "shop", seed: _seed }); break;
-        case "event":  instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "event", seed: _seed }); break;
+        case "rest":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "rest", seed: _seed, used: _used, persistence_key: _def.sid }); break;
+        case "reward": instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "chest", seed: _seed, used: _used, persistence_key: _def.sid }); break;
+        case "shop":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "shop", seed: _seed, used: _used, stock: _stock, persistence_key: _def.sid }); break;
+        case "event":  instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "event", seed: _seed, used: _used, persistence_key: _def.sid }); break;
     }
     if (variable_struct_exists(_def, "pickups")) {
         for (var _i = 0; _i < array_length(_def.pickups); _i++) {
@@ -241,6 +250,7 @@ function interact_step() {
             run_heal(_amount);
             toast_show("Descanso: +" + string(_amount) + " de vida.");
             used = true;
+            interact_persist_state(id);
             break;
         case "chest":
             choice_open("RECOMPENSA - escolha uma", reward_options(seed), false, false, id);
@@ -257,6 +267,13 @@ function interact_step() {
             var _old = global.run.weapon;
             weapon_equip(wid, durability);
             toast_show("Pegou: " + weapon_def(wid).name);
+            if (persistent_key != "" && map_index >= 0) {
+                run_map_save_pickup(map_index, persistent_key);
+                if (!is_undefined(_old)) {
+                    persistent_key = "";
+                    drop_key = run_map_new_drop_key();
+                }
+            }
             if (is_undefined(_old)) {
                 instance_destroy();
             } else {
@@ -264,6 +281,13 @@ function interact_step() {
                 durability = _old.durability;
             }
             break;
+    }
+}
+
+function interact_persist_state(_inst) {
+    if (!instance_exists(_inst)) return;
+    if (_inst.persistence_key != "") {
+        run_special_state_save(_inst.persistence_key, _inst.used, _inst.stock);
     }
 }
 

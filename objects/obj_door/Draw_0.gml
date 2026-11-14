@@ -40,6 +40,10 @@ switch (room_kind) {
     case "event":  // triangulo para cima
         draw_triangle(x - 6, _iy + 5, x + 6, _iy + 5, x, _iy - 6, false);
         break;
+    case "challenge": // triangulo duplo
+        draw_triangle(x - 6, _iy + 5, x + 6, _iy + 5, x, _iy - 6, false);
+        draw_rectangle(x - 1, _iy - 5, x + 1, _iy + 5, false);
+        break;
     case "boss":   // coroa
         draw_rectangle(x - 7, _iy + 1, x + 7, _iy + 5, false);
         draw_triangle(x - 7, _iy + 1, x - 2, _iy + 1, x - 7, _iy - 6, false);

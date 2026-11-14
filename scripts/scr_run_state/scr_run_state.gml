@@ -6,6 +6,11 @@ function run_reset() {
         active: false,
         seed: 0,
         graph: undefined,   // rota gerada em run_start (scr_route)
+        maps: [],           // corredores por bioma e progresso persistente de setores
+        map_index: -1,
+        return_context: undefined,
+        special_rooms: {},  // escolhas, estoque e recompensa ja usada por sala especial
+        drop_seq: 0,
         hp: CFG.player.hp_max,
         hp_max: CFG.player.hp_max,
         special: 0,
@@ -28,10 +33,10 @@ function run_start(_seed = undefined) {
     }
     global.run.seed = _seed;
     global.run.active = true;
-    // A rota inteira e sorteada agora, antes de qualquer outro uso do gerador
-    // aleatorio: a mesma seed sempre produz as mesmas salas e conexoes.
-    global.run.graph = run_graph_build();
-    run_goto_node(global.run.graph.start);
+    // Todos os mapas da run sao definidos uma vez, com salas e seeds estaveis.
+    global.run.maps = run_maps_build();
+    global.run.map_index = 0;
+    stage_goto(global.run.maps[0].sid);
 }
 
 /// Encerra a run (derrota, vitoria ou abandono) e volta ao lobby sem nada da run.

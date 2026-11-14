@@ -18,5 +18,7 @@ if (input_pressed(ACT.INTERACT) && global.flow.state == FLOW.PLAY && global.play
     switch (kind) {
         case "run_start":   run_start(); break;
         case "route":       run_goto_node(target_nid); break;
+        case "special":     run_enter_special(target_sid); break;
+        case "return":      run_return_from_special(); break;
     }
 }

@@ -2,15 +2,16 @@
 
 Beat 'em up roguelike single-player em GameMaker LTS 2026 (runtime 2026.0.0.23).
 
-Estado atual: **Etapas A a G escritas**. A run vai do lobby ao chefe final, com rotas ramificadas, recompensas temporárias e retorno ao lobby em vitória ou derrota. Personagens e cenários usam arte em pixel art gerada no PixelLab (portas, itens e HUD ainda são formas simples) e o balanceamento ainda não foi ajustado em jogo.
+Estado atual: a run vai do lobby por três mapas laterais largos (esgoto, ruas e telhados). Cada mapa tem quatro setores de horda, acessos fixos a tesouro, desafio, loja e descanso, e uma luta contra o chefe existente no fim do corredor. As salas opcionais são telas pretas provisórias de tamanho fixo; o progresso volta ao mesmo ponto do corredor.
 
 ## Como abrir e jogar
 
 1. Abra `Brawlerogue.yyp` no GameMaker LTS 2026.
 2. Rode com F5 (alvo Windows, VM).
 3. No lobby, ande até a porta e aperte `E` para iniciar a run.
-4. Em cada sala, derrote a horda e escolha uma das portas da direita; o texto e o ícone acima da porta dizem o tipo da próxima sala.
-5. Atravesse esgoto, ruas e topo dos prédios e derrote o chefe.
+4. Avance pelo corredor lateral; as hordas bloqueiam o setor até todos os inimigos serem derrotados.
+5. Depois de limpar um setor, avance ou volte. Use as passagens fixas para visitar tesouro, desafio, loja e descanso; a porta de retorno leva ao ponto de entrada.
+6. Derrote o chefe no fim de cada mapa para seguir ao próximo bioma. Vencer o chefe do último mapa encerra a run.
 
 ## Controles
 
@@ -64,7 +65,7 @@ A lógica fica em `scripts/scr_boss` e os números em `CFG.enemies.boss` (listas
 - Durante avisos e golpes o chefe leva dano mas não é interrompido; após 3 golpes seguidos fora disso, ele revida.
 - Com metade da vida entra na fase 2: fica invulnerável por 80 frames, chama dois capangas, encurta os avisos e repete dash e slam.
 - A barra de vida central mostra a fase e uma marca no ponto da troca.
-- Ao zerar a vida, a luta para, aparece "VITORIA" com o tempo da run e o jogo volta ao lobby.
+- O mesmo chefe aparece no fim do corredor principal de cada mapa. Ao vencer, a run segue para o próximo bioma; após o último chefe, aparece "VITORIA" e o jogo volta ao lobby.
 
 ## Recompensas, armas e salas especiais
 
@@ -77,29 +78,30 @@ Tudo abaixo vive em `global.run` e some ao fim da run. As definições ficam em 
 - **Armas** (Cano, Taco): `J` passa a dar um golpe único da arma no lugar do combo. Cada acerto gasta 1 de durabilidade; em 0 a arma quebra. Se a personagem for derrubada, a arma cai no chão e pode ser pega de novo. Algumas salas de combate têm uma arma no chão.
 - **Moedas**: 5 por inimigo derrotado, usadas só na loja.
 
-Salas especiais (interaja com o objeto do centro):
+Salas especiais (as telas estão provisoriamente pretas e fixas em 480x270; use a porta `VOLTAR` para retornar ao corredor):
 
 - **Descanso**: cura 30% da vida máxima, uma vez.
 - **Recompensa**: escolha 1 entre 3.
 - **Loja**: Marmita e até 3 itens sorteados, pagos com moedas; `L` sai.
-- **Evento**: uma escolha com consequência escrita na carta, ou ignorar.
+- **Desafio**: por enquanto usa o evento existente, com uma escolha de risco/recompensa.
 
 Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala são fixas para a mesma seed.
 
 ## Run e salas
 
-- A rota é um grafo em camadas gerado em `run_start` a partir da seed (mostrada no canto da tela). A mesma seed gera as mesmas salas e conexões: `run_start(12345)`.
-- Cada bioma tem `CFG.run.layers_per_biome` salas visitadas (4 por padrão): entrada, duas camadas com 2 a 3 opções e saída. Com 4 camadas nenhuma sala se repete na run; a partir de 5 o conjunto atual pode repetir combates.
-- `run_graph_validate` confere que toda sala existe, que as conexões só avançam, que tudo é alcançável e que toda sala leva ao chefe. Se a rota ramificada falhar, usa uma rota linear.
-- Os módulos de sala ficam em `scripts/scr_rooms`: 11 no esgoto, 11 nas ruas, 10 no topo dos prédios, mais a arena final.
-- Uma sala de combate tem `encounter`: gatilho, limites da arena e ondas. Ao cruzar o gatilho a câmera e os atores ficam presos; derrotadas as ondas aparece "GO" e as portas abrem.
-- Todas as salas da run usam o mesmo room do GameMaker como casca (`RM_STAGE`, hoje `rm_sandbox`); a largura vem dos dados da sala.
+- `run_maps_build` escolhe, com a seed da run, um trecho inicial, dois trechos intermediários e um trecho final por bioma; concatena as ondas e armas desses módulos num corredor largo.
+- Cada mapa tem passagens fixas para tesouro, desafio/evento, loja e descanso. As salas especiais usam a mesma sala-casca do GameMaker, sem cenário, com largura fixa de 480 unidades.
+- O chefe definido pela arena `boss_arena` é instanciado no fim de cada corredor. A vitória avança o bioma; apenas o último chefe encerra a run.
+- O estado dos setores, dos itens no chão e das salas especiais fica em `global.run`. Voltar a uma sala especial não reinicia hordas limpas, armas coletadas, estoque comprado ou recompensas usadas.
+- Ao cruzar o gatilho de um setor, `encounter_update_map` trava os limites de movimento e a câmera. Quando todas as ondas acabam, as bordas se abrem e o jogador pode recuar ou seguir.
+- Os módulos de combate e especiais continuam em `scripts/scr_rooms`: eles fornecem layout, ondas, armas e interações para os mapas gerados.
+- Os mapas e as salas especiais usam o mesmo room do GameMaker como casca (`RM_STAGE`, hoje `rm_sandbox`); o corredor usa largura calculada e as salas especiais ficam fixas na largura da tela.
 
 ## Como expandir
 
 - **Sala nova:** em `rooms_init`, uma linha `room_combat(id, bioma, nome, papel, largura, ondas)` ou `room_special(id, bioma, nome, tipo)`. Cada inimigo de uma onda é `[x, y]` (capanga) ou `[x, y, "tipo"]`; as posições precisam ficar dentro da arena (x de 125 até largura - 15, y de 178 a 258). Para uma arma no chão, `room_pickup(id, arma, x, y)`.
 - **Inimigo novo:** um bloco em `config_enemies_init` copiando o do capanga, um golpe com `attack_define` e os sprites `idle`, `walk`, `telegraph`, `attack` (3 frames), `hurt`, `knockdown`, `getup`, `dead`. Um comportamento diferente pede um novo valor de `ai` e o desvio em `enemy_step`, como o chefe faz.
-- **Bioma novo:** um item em `global.biomes` (id, nome, paleta), uma função `backdrop_*` em `scr_backdrop` e de 10 a 11 salas com papéis `start`, `mid` e `exit`. A rota percorre os biomas na ordem da lista.
+- **Bioma novo:** um item em `global.biomes` (id, nome, paleta), uma imagem `spr_bg_<bioma>` e módulos suficientes para papéis `start`, `mid` e `exit`, além de recompensa, evento/desafio, loja e descanso. Os mapas são percorridos na ordem da lista.
 - **Modificador novo:** um `mod_define` usando um `stat` de `run_base_stats()` e a inclusão do id em `global.reward_pool`. Para um efeito inédito, crie o stat em `run_base_stats()` e consulte `global.run.stats` no ponto em que ele age.
 - **Arma nova:** um item em `CFG.weapons`, um golpe com `attack_define` e um `mod_define` de categoria `weapon`.
 - **Golpe novo:** `attack_define(nome, campos)`; os padrões e o significado de cada campo estão no topo de `scr_config`.
@@ -111,9 +113,9 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - `scripts/scr_config` — todo o balanceamento (`CFG`): jogador, golpes, inimigos, chefe, horda, run, recompensas, câmera.
 - `scripts/scr_input` — ações abstratas (`ACT.*`), teclas e botões.
 - `scripts/scr_run_state` — estado temporário da run (`global.run`), início, fim e reset.
-- `scripts/scr_stage` — montagem da sala a partir dos dados, encontros (ondas e trava de arena) e limites.
+- `scripts/scr_stage` — montagem dos corredores e salas especiais, encontros, travas de horda e limites.
 - `scripts/scr_rooms` — biomas e módulos de sala.
-- `scripts/scr_route` — geração, validação e navegação da rota.
+- `scripts/scr_route` — geração dos mapas por bioma, seleção de módulos e estado das salas opcionais.
 - `scripts/scr_backdrop` — desenha o cenário pintado de cada bioma.
 - `scripts/scr_modifiers` — recompensas, stats da run, armas, moedas e avisos.
 - `scripts/scr_choice` — tela de escolha, efeitos das opções e objetos interativos (`obj_interact`).
@@ -133,7 +135,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 
 - Inimigos não têm animação própria de idle nem de levantar: o idle é a pose parada com o tronco 1 px mais baixo e o levantar é um quadro da queda.
 - Agarrão e arremesso reaproveitam frames de ataque; a arma na mão é uma barra desenhada por cima da personagem.
-- Portas e objetos interativos são desenhados com retângulos. O cenário é o mesmo em todas as salas de um bioma.
+- Portas, bloqueios e objetos interativos são formas provisórias desenhadas por código. Os interiores das salas opcionais são pretos até receberem arte própria.
 - A fonte é a padrão do GameMaker.
 - Não há som.
 
@@ -141,7 +143,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 
 - Resolução interna 480x270, janela em múltiplo inteiro (até 3x), 60 fps.
 - Salas definidas em GML e montadas em tempo de execução; spawns e portas ficam no código, não no editor de rooms.
-- As ondas de cada sala são fixas; a seed varia a rota e as salas, não a composição dentro da sala.
-- Não há paredes ou obstáculos dentro das salas: os limites são as bordas da sala e da arena.
+- As ondas dos módulos são fixas; a seed escolhe módulos e ofertas, e não muda a composição das ondas.
+- As barreiras de horda limitam o setor ativo; fora do combate, o jogador pode percorrer o corredor de ponta a ponta.
 - Inimigos nascem dentro da arena, piscando, em vez de entrar pelas laterais.
 - Não há pausa nem tela de opções.

@@ -143,7 +143,15 @@ function weapon_use() {
 function weapon_drop(_x, _y) {
     var _wp = global.run.weapon;
     if (is_undefined(_wp)) return;
-    instance_create_depth(_x, _y, 0, obj_interact, { kind: "weapon", wid: _wp.wid, durability: _wp.durability });
+    var _map_index = (global.stage.kind == "main_map") ? global.stage_rt.map_index : -1;
+    var _drop_key = (_map_index >= 0) ? run_map_new_drop_key() : "";
+    instance_create_depth(_x, _y, 0, obj_interact, {
+        kind: "weapon",
+        wid: _wp.wid,
+        durability: _wp.durability,
+        map_index: _map_index,
+        drop_key: _drop_key
+    });
     global.run.weapon = undefined;
 }
 

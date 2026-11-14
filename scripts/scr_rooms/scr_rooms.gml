@@ -258,6 +258,7 @@ function room_special(_sid, _bid, _name, _kind) {
         biome: _bid,
         kind: _kind,
         role: "mid",
-        width: 480
+        width: VIEW_W,
+        black_background: true
     });
 }

@@ -10,6 +10,7 @@ function room_kind_label(_kind) {
         case "reward": return "RECOMPENSA";
         case "shop":   return "LOJA";
         case "event":  return "EVENTO";
+        case "challenge": return "DESAFIO";
         case "boss":   return "CHEFE";
     }
     return "";
@@ -22,6 +23,7 @@ function room_kind_colour(_kind) {
         case "reward": return make_colour_rgb(255, 210, 63);
         case "shop":   return make_colour_rgb(45, 226, 230);
         case "event":  return make_colour_rgb(255, 60, 170);
+        case "challenge": return make_colour_rgb(255, 60, 170);
         case "boss":   return make_colour_rgb(255, 60, 60);
     }
     return make_colour_rgb(255, 210, 63);
@@ -252,4 +254,282 @@ function route_door_label(_from, _to) {
         _txt = run_biome_name(_to.biome_index) + ": " + _txt;
     }
     return _txt;
+}
+
+// ---------------------------------------------------------------- mapas laterais
+
+/// Gera um mapa largo por bioma. Os trechos de combate reaproveitam os modulos
+/// existentes; os locais especiais ficam em pontos fixos do corredor principal.
+function run_maps_build() {
+    var _maps = [];
+    var _used = {};
+    var _biome_count = array_length(global.biomes);
+    global.run.special_rooms = {};
+
+    for (var _b = 0; _b < _biome_count; _b++) {
+        var _biome = global.biomes[_b];
+        var _selected = [];
+
+        var _sid = room_pick_fallback(_biome.bid, "combat", "start", _used);
+        if (is_undefined(_sid)) show_error("Falta uma sala inicial de combate para " + _biome.name + ".", true);
+        array_push(_selected, _sid);
+        _used[$ _sid] = true;
+
+        for (var _i = 0; _i < 2; _i++) {
+            _sid = room_pick_fallback(_biome.bid, "combat", "mid", _used);
+            if (is_undefined(_sid)) show_error("Faltam salas intermediarias de combate para " + _biome.name + ".", true);
+            array_push(_selected, _sid);
+            _used[$ _sid] = true;
+        }
+
+        _sid = room_pick_fallback(_biome.bid, "combat", "exit", _used);
+        if (is_undefined(_sid)) show_error("Falta uma sala final de combate para " + _biome.name + ".", true);
+        array_push(_selected, _sid);
+        _used[$ _sid] = true;
+
+        var _sections = [];
+        var _pickups = [];
+        var _offset = 0;
+        for (var _i = 0; _i < array_length(_selected); _i++) {
+            var _src = stage_get(_selected[_i]);
+            var _waves = [];
+            for (var _w = 0; _w < array_length(_src.encounter.waves); _w++) {
+                var _wave_src = _src.encounter.waves[_w];
+                var _wave = [];
+                for (var _e = 0; _e < array_length(_wave_src); _e++) {
+                    var _enemy = _wave_src[_e];
+                    array_push(_wave, {
+                        type: _enemy.type,
+                        x: _enemy.x + _offset,
+                        y: _enemy.y
+                    });
+                }
+                array_push(_waves, _wave);
+            }
+
+            array_push(_sections, {
+                id: _i,
+                kind: "combat",
+                sid: _src.sid,
+                name: _src.name,
+                x1: _offset,
+                x2: _offset + _src.width,
+                trigger_x: _offset + _src.encounter.trigger_x,
+                lock_x1: _offset + _src.encounter.lock_x1,
+                lock_x2: _offset + _src.encounter.lock_x2,
+                waves: _waves,
+                state: "pending",
+                wave_index: 0
+            });
+
+            if (variable_struct_exists(_src, "pickups")) {
+                for (var _p = 0; _p < array_length(_src.pickups); _p++) {
+                    var _pickup = _src.pickups[_p];
+                    array_push(_pickups, {
+                        key: _src.sid + "_" + string(_p),
+                        wid: _pickup.wid,
+                        x: _offset + _pickup.x,
+                        y: _pickup.y
+                    });
+                }
+            }
+            _offset += _src.width;
+        }
+
+        // O chefe usa o mesmo obj_enemy e a mesma ficha da arena final existente,
+        // mas a luta acontece no fim do corredor do proprio bioma.
+        var _boss_def = stage_get(CFG.run.boss_stage);
+        var _boss_source = _boss_def.encounter.waves[0][0];
+        var _boss_width = _boss_def.width;
+        var _boss_x1 = _offset;
+        var _boss_x2 = _offset + _boss_width;
+        array_push(_sections, {
+            id: array_length(_sections),
+            kind: "boss",
+            sid: _boss_def.sid,
+            name: "CHEFE",
+            x1: _boss_x1,
+            x2: _boss_x2,
+            trigger_x: _boss_x1 + _boss_def.encounter.trigger_x,
+            lock_x1: _boss_x1,
+            lock_x2: _boss_x2,
+            waves: [[{ type: _boss_source.type, x: _boss_x1 + _boss_source.x, y: _boss_source.y }]],
+            state: "pending",
+            wave_index: 0
+        });
+        _offset = _boss_x2;
+
+        // Uma passagem fixa por local opcional em cada mapa. "event" reutiliza
+        // o sistema de escolha existente como placeholder para o desafio.
+        var _special_specs = [
+            { kind: "reward", module_kind: "reward", label: "TESOURO", section: 0, inset: 56 },
+            { kind: "challenge", module_kind: "event", label: "DESAFIO", section: 1, inset: 56 },
+            { kind: "shop", module_kind: "shop", label: "LOJA", section: 2, inset: 56 },
+            { kind: "rest", module_kind: "rest", label: "DESCANSO", section: 3, inset: 96 }
+        ];
+        var _specials = [];
+        for (var _i = 0; _i < array_length(_special_specs); _i++) {
+            var _spec = _special_specs[_i];
+            var _target_sid = room_pick_fallback(_biome.bid, _spec.module_kind, "mid", _used);
+            if (is_undefined(_target_sid)) show_error("Falta a sala opcional " + _spec.label + " para " + _biome.name + ".", true);
+            _used[$ _target_sid] = true;
+            var _state = {
+                seed: irandom(999999),
+                used: false,
+                stock: undefined
+            };
+            global.run.special_rooms[$ _target_sid] = _state;
+            var _section = _sections[_spec.section];
+            array_push(_specials, {
+                kind: _spec.kind,
+                room_kind: _spec.kind,
+                label: _spec.label,
+                target_sid: _target_sid,
+                x: _section.x2 - _spec.inset,
+                y: 178,
+                requires_clear: true
+            });
+        }
+
+        var _map_sid = "map_" + _biome.bid;
+        var _map = {
+            sid: _map_sid,
+            biome_index: _b,
+            biome: _biome.bid,
+            name: _biome.name,
+            width: _offset,
+            sections: _sections,
+            specials: _specials,
+            pickups: _pickups,
+            pickups_taken: {},
+            ground_weapons: [],
+            completed: false
+        };
+        array_push(_maps, _map);
+
+        stage_define({
+            sid: _map_sid,
+            name: _biome.name,
+            biome: _biome.bid,
+            kind: "main_map",
+            map_index: _b,
+            room_asset: RM_STAGE,
+            width: _offset,
+            floor_top: 178,
+            floor_bottom: 258,
+            player_spawn: { x: 60, y: 222 },
+            doors: [],
+            enemies: [],
+            decor: _b + 1,
+            palette: _biome.palette
+        });
+    }
+
+    return _maps;
+}
+
+function run_current_map() {
+    if (!global.run.active) return undefined;
+    var _i = global.run.map_index;
+    if (_i < 0 || _i >= array_length(global.run.maps)) return undefined;
+    return global.run.maps[_i];
+}
+
+function run_map_write(_map_index, _map) {
+    global.run.maps[_map_index] = _map;
+}
+
+function run_map_mark_section(_map_index, _section_index, _state, _wave_index = undefined) {
+    if (_map_index < 0 || _map_index >= array_length(global.run.maps)) return;
+    var _map = global.run.maps[_map_index];
+    if (_section_index < 0 || _section_index >= array_length(_map.sections)) return;
+    var _section = _map.sections[_section_index];
+    _section.state = _state;
+    if (!is_undefined(_wave_index)) _section.wave_index = _wave_index;
+    _map.sections[_section_index] = _section;
+    run_map_write(_map_index, _map);
+}
+
+function run_map_save_pickup(_map_index, _key) {
+    if (_map_index < 0 || _map_index >= array_length(global.run.maps)) return;
+    var _map = global.run.maps[_map_index];
+    _map.pickups_taken[$ _key] = true;
+    run_map_write(_map_index, _map);
+}
+
+function run_map_new_drop_key() {
+    global.run.drop_seq++;
+    return "drop_" + string(global.run.drop_seq);
+}
+
+/// Guarda armas largadas que ainda estao no chao antes de abrir uma sala opcional.
+function run_map_snapshot_ground_weapons(_map_index) {
+    if (_map_index < 0 || _map_index >= array_length(global.run.maps)) return;
+    var _ground = [];
+    var _count = instance_number(obj_interact);
+    for (var _i = 0; _i < _count; _i++) {
+        var _item = instance_find(obj_interact, _i);
+        if (_item.kind != "weapon" || _item.map_index != _map_index || _item.persistent_key != "") continue;
+        array_push(_ground, {
+            key: _item.drop_key,
+            wid: _item.wid,
+            durability: _item.durability,
+            x: _item.x,
+            y: _item.y
+        });
+    }
+    var _map = global.run.maps[_map_index];
+    _map.ground_weapons = _ground;
+    run_map_write(_map_index, _map);
+}
+
+function run_special_state(_sid) {
+    if (!variable_struct_exists(global.run.special_rooms, _sid)) {
+        global.run.special_rooms[$ _sid] = { seed: 0, used: false, stock: undefined };
+    }
+    return global.run.special_rooms[$ _sid];
+}
+
+function run_special_state_save(_sid, _used, _stock) {
+    if (_sid == "" || is_undefined(_sid)) return;
+    var _state = run_special_state(_sid);
+    _state.used = _used;
+    _state.stock = _stock;
+    global.run.special_rooms[$ _sid] = _state;
+}
+
+function run_enter_special(_target_sid) {
+    var _p = instance_find(obj_player, 0);
+    if (_p == noone || !global.run.active) return;
+    if (global.stage.kind == "main_map") run_map_snapshot_ground_weapons(global.stage_rt.map_index);
+    global.run.return_context = {
+        stage_sid: global.stage.sid,
+        x: _p.x,
+        y: _p.y,
+        facing: _p.facing
+    };
+    stage_goto(_target_sid);
+}
+
+function run_return_from_special() {
+    if (is_undefined(global.run.return_context)) {
+        stage_goto("lobby");
+        return;
+    }
+    stage_goto(global.run.return_context.stage_sid);
+}
+
+function run_map_boss_cleared() {
+    var _map = run_current_map();
+    if (is_undefined(_map) || _map.completed) return;
+    var _map_index = global.run.map_index;
+    _map.completed = true;
+    run_map_write(_map_index, _map);
+
+    if (_map_index + 1 < array_length(global.run.maps)) {
+        global.run.map_index = _map_index + 1;
+        stage_goto(global.run.maps[global.run.map_index].sid);
+    } else {
+        game_victory();
+    }
 }

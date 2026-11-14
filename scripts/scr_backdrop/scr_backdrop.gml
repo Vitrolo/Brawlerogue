@@ -26,6 +26,13 @@ function stage_backdrop_info(_biome) {
 
 function stage_draw_placeholder() {
     var _s = global.stage;
+    if (variable_struct_exists(_s, "black_background") && _s.black_background) {
+        draw_set_alpha(1);
+        draw_set_colour(c_black);
+        draw_rectangle(-16, -16, VIEW_W + 16, VIEW_H + 16, false);
+        draw_set_colour(c_white);
+        return;
+    }
     var _info = stage_backdrop_info(_s.biome);
     var _spr = _info.sprite;
     var _w = sprite_get_width(_spr);
