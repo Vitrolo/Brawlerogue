@@ -199,7 +199,7 @@ function biome_get(_bid) {
 }
 
 /// Registra um modulo no conjunto de salas, completando os campos comuns.
-function room_add(_def) {
+function room_module_add(_def) {
     _def.room_asset = RM_STAGE;
     _def.floor_top = 178;
     _def.floor_bottom = 258;
@@ -230,7 +230,7 @@ function room_combat(_sid, _bid, _name, _role, _width, _waves) {
         }
         array_push(_built, _wave);
     }
-    room_add({
+    room_module_add({
         sid: _sid,
         name: _name,
         biome: _bid,
@@ -252,7 +252,7 @@ function room_pickup(_sid, _wid, _x, _y) {
 
 /// Sala sem combate (descanso, recompensa, loja, evento).
 function room_special(_sid, _bid, _name, _kind) {
-    room_add({
+    room_module_add({
         sid: _sid,
         name: _name,
         biome: _bid,
