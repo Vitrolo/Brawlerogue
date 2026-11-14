@@ -280,7 +280,7 @@ function enemy_animate() {
             actor_anim(_s.idle, (anim_clock div 24) mod 2);
             break;
         case ES.MOVE:
-            if (abs(vx) > 0.1 || abs(vy) > 0.1) actor_anim(_s.walk, (anim_clock div 9) mod 4);
+            if (abs(vx) > 0.1 || abs(vy) > 0.1) actor_anim(_s.walk, (anim_clock div 7) mod 6);
             else actor_anim(_s.idle, (anim_clock div 24) mod 2);
             break;
         case ES.TELEGRAPH: actor_anim(_s.telegraph, 0); break;

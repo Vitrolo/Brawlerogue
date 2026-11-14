@@ -431,14 +431,14 @@ function attack_anim_frame(_atk, _timer) {
 
 function player_animate() {
     switch (state) {
-        case PS.IDLE:       actor_anim(spr_player_idle, (anim_clock div 24) mod 2); break;
-        case PS.WALK:       actor_anim(spr_player_walk, (anim_clock div 7) mod 4); break;
+        case PS.IDLE:       actor_anim(spr_player_idle, (anim_clock div 10) mod 4); break;
+        case PS.WALK:       actor_anim(spr_player_walk, (anim_clock div 6) mod 6); break;
         case PS.JUMP_START: actor_anim(spr_player_land, 0); break;
         case PS.AIR:        actor_anim(vz > 0 ? spr_player_jump : spr_player_fall, 0); break;
         case PS.AIR_ATTACK: actor_anim(atk.sprite, 0); break;
         case PS.LAND:       actor_anim(spr_player_land, 0); break;
         case PS.ATTACK:     actor_anim(atk.sprite, attack_anim_frame(atk, state_timer)); break;
-        case PS.SPECIAL:    actor_anim(atk.sprite, (state_timer div 3) mod 2); break;
+        case PS.SPECIAL:    actor_anim(atk.sprite, (state_timer div 3) mod 4); break;
         case PS.DODGE:      actor_anim(spr_player_dodge, 0); break;
         case PS.BLOCK:      actor_anim(spr_player_block, 0); break;
         case PS.HURT:       actor_anim(spr_player_hurt, 0); break;

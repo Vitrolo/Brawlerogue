@@ -56,6 +56,8 @@ function combat_overlap(_hb, _t) {
 function hitbox_check() {
     var _hb = id;
     with (obj_actor) {
+        // A resolucao de um golpe pode remover a hitbox durante esta varredura.
+        if (!instance_exists(_hb)) continue;
         if (team == _hb.team) continue;
         if (array_contains(_hb.hit_list, id)) continue;
         if (!combat_overlap(_hb, id)) continue;

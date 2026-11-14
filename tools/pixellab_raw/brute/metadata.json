@@ -1,0 +1,64 @@
+{
+  "group_id": "922e3e3e-0c86-45e0-8c33-c6dd3872459f",
+  "states": [
+    {
+      "character": {
+        "id": "1c4b893f-1118-4c2b-bfca-236ba3d40487",
+        "name": "Idle",
+        "prompt": "huge muscular bald bruiser, thick arms, green tank top, brown cargo pants, black boots, steel knuckles, very broad shoulders, fighting game heavy enemy",
+        "size": {
+          "width": 92,
+          "height": 92
+        },
+        "template_id": "mannequin",
+        "directions": 4,
+        "view": "side",
+        "created_at": "2026-11-14T12:07:32.591738+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "west": "Idle/rotations/west.png",
+          "east": "Idle/rotations/east.png",
+          "north": "Idle/rotations/north.png"
+        },
+        "animations": {
+          "attack": {
+            "east": [
+              "Idle/animations/attack/east/frame_000.png",
+              "Idle/animations/attack/east/frame_001.png",
+              "Idle/animations/attack/east/frame_002.png",
+              "Idle/animations/attack/east/frame_003.png",
+              "Idle/animations/attack/east/frame_004.png",
+              "Idle/animations/attack/east/frame_005.png"
+            ]
+          },
+          "walk": {
+            "east": [
+              "Idle/animations/walk/east/frame_000.png",
+              "Idle/animations/walk/east/frame_001.png",
+              "Idle/animations/walk/east/frame_002.png",
+              "Idle/animations/walk/east/frame_003.png",
+              "Idle/animations/walk/east/frame_004.png",
+              "Idle/animations/walk/east/frame_005.png"
+            ]
+          },
+          "fall": {
+            "east": [
+              "Idle/animations/fall/east/frame_000.png",
+              "Idle/animations/fall/east/frame_001.png",
+              "Idle/animations/fall/east/frame_002.png",
+              "Idle/animations/fall/east/frame_003.png",
+              "Idle/animations/fall/east/frame_004.png",
+              "Idle/animations/fall/east/frame_005.png",
+              "Idle/animations/fall/east/frame_006.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-11-14T12:40:59.914440"
+}

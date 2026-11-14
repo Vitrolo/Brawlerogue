@@ -2,7 +2,7 @@
 
 Beat 'em up roguelike single-player em GameMaker LTS 2026 (runtime 2026.0.0.23).
 
-Estado atual: **Etapas A a G escritas**. A run vai do lobby ao chefe final, com rotas ramificadas, recompensas temporárias e retorno ao lobby em vitória ou derrota. Toda a arte é placeholder e o balanceamento ainda não foi ajustado em jogo.
+Estado atual: **Etapas A a G escritas**. A run vai do lobby ao chefe final, com rotas ramificadas, recompensas temporárias e retorno ao lobby em vitória ou derrota. Personagens e cenários usam arte em pixel art gerada no PixelLab (portas, itens e HUD ainda são formas simples) e o balanceamento ainda não foi ajustado em jogo.
 
 ## Como abrir e jogar
 
@@ -104,7 +104,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - **Arma nova:** um item em `CFG.weapons`, um golpe com `attack_define` e um `mod_define` de categoria `weapon`.
 - **Golpe novo:** `attack_define(nome, campos)`; os padrões e o significado de cada campo estão no topo de `scr_config`.
 - **Controle e remapeamento:** só `input_init`; o resto do jogo consulta `ACT.*`.
-- **Arte final:** substitua os frames mantendo o nome do sprite, o tamanho do quadro e a origem nos pés (32, 56 em quadros de 64x56). Para cenários, troque `stage_draw_placeholder` por camadas pintadas no room.
+- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o script. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`).
 
 ## Estrutura
 
@@ -114,7 +114,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - `scripts/scr_stage` — montagem da sala a partir dos dados, encontros (ondas e trava de arena) e limites.
 - `scripts/scr_rooms` — biomas e módulos de sala.
 - `scripts/scr_route` — geração, validação e navegação da rota.
-- `scripts/scr_backdrop` — cenários placeholder por bioma.
+- `scripts/scr_backdrop` — desenha o cenário pintado de cada bioma.
 - `scripts/scr_modifiers` — recompensas, stats da run, armas, moedas e avisos.
 - `scripts/scr_choice` — tela de escolha, efeitos das opções e objetos interativos (`obj_interact`).
 - `scripts/scr_camera` — câmera lateral, limites e trava de arena.
@@ -126,13 +126,14 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - `scripts/scr_game` — inicialização, fluxo de derrota e vitória, congelamento de impacto, efeitos, HUD.
 - `objects/` — eventos finos que chamam os scripts. `obj_game` é persistente e nasce em `rm_boot`.
 - `rooms/` — `rm_boot`, `rm_lobby`, `rm_sandbox`. Os rooms são cascas vazias; o conteúdo vem dos dados.
-- `tools/gen_project.py` — gera os sprites placeholder; também gerou os `.yy` e o `.yyp` iniciais. Rodar o script inteiro sobrescreve o `.yyp`: use só `gen_sprites("spr_prefixo_")` para regenerar sprites.
+- `tools/gen_project.py` — gerou os `.yy`, o `.yyp` e os sprites placeholder iniciais. Não rode mais o script inteiro nem `gen_sprites`: ele sobrescreve o `.yyp` e troca a arte atual pelos bonecos de blocos.
+- `tools/import_pixellab.py` e `tools/pngio.py` — importam a arte do PixelLab (`tools/pixellab_raw`) para os sprites.
 
 ## Placeholders
 
-- Todos os sprites (`spr_player_*`, `spr_thug_*`, `spr_runner_*`, `spr_brute_*`, `spr_boss_*`) são bonecos de blocos gerados por script.
+- Inimigos não têm animação própria de idle nem de levantar: o idle é a pose parada com o tronco 1 px mais baixo e o levantar é um quadro da queda.
 - Agarrão e arremesso reaproveitam frames de ataque; a arma na mão é uma barra desenhada por cima da personagem.
-- Cenários, portas e objetos interativos são desenhados com retângulos. Os detalhes de cada sala são fixos por módulo.
+- Portas e objetos interativos são desenhados com retângulos. O cenário é o mesmo em todas as salas de um bioma.
 - A fonte é a padrão do GameMaker.
 - Não há som.
 

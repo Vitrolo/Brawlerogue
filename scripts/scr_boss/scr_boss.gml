@@ -302,7 +302,7 @@ function boss_animate() {
             actor_anim(_s.idle, (anim_clock div 20) mod 2);
             break;
         case BS.IDLE:
-            if (abs(vx) > 0.1 || abs(vy) > 0.1) actor_anim(_s.walk, (anim_clock div 8) mod 4);
+            if (abs(vx) > 0.1 || abs(vy) > 0.1) actor_anim(_s.walk, (anim_clock div 7) mod 6);
             else actor_anim(_s.idle, (anim_clock div 20) mod 2);
             break;
         case BS.TELEGRAPH: actor_anim(_s.telegraph, 0); break;

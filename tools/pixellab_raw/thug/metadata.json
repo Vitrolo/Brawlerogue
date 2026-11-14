@@ -1,0 +1,64 @@
+{
+  "group_id": "1917d047-191a-4043-a570-9e8748c513be",
+  "states": [
+    {
+      "character": {
+        "id": "467571ad-dac5-4798-978f-dcd0282563be",
+        "name": "Idle",
+        "prompt": "street gang thug, teal mohawk, purple leather vest, grey jeans, black boots, chain on belt, mean look, fighting game enemy",
+        "size": {
+          "width": 80,
+          "height": 80
+        },
+        "template_id": "mannequin",
+        "directions": 4,
+        "view": "side",
+        "created_at": "2026-11-14T12:05:55.122525+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "west": "Idle/rotations/west.png",
+          "east": "Idle/rotations/east.png",
+          "north": "Idle/rotations/north.png"
+        },
+        "animations": {
+          "fall": {
+            "east": [
+              "Idle/animations/fall/east/frame_000.png",
+              "Idle/animations/fall/east/frame_001.png",
+              "Idle/animations/fall/east/frame_002.png",
+              "Idle/animations/fall/east/frame_003.png",
+              "Idle/animations/fall/east/frame_004.png",
+              "Idle/animations/fall/east/frame_005.png",
+              "Idle/animations/fall/east/frame_006.png"
+            ]
+          },
+          "attack": {
+            "east": [
+              "Idle/animations/attack/east/frame_000.png",
+              "Idle/animations/attack/east/frame_001.png",
+              "Idle/animations/attack/east/frame_002.png",
+              "Idle/animations/attack/east/frame_003.png",
+              "Idle/animations/attack/east/frame_004.png",
+              "Idle/animations/attack/east/frame_005.png"
+            ]
+          },
+          "walk": {
+            "east": [
+              "Idle/animations/walk/east/frame_000.png",
+              "Idle/animations/walk/east/frame_001.png",
+              "Idle/animations/walk/east/frame_002.png",
+              "Idle/animations/walk/east/frame_003.png",
+              "Idle/animations/walk/east/frame_004.png",
+              "Idle/animations/walk/east/frame_005.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-11-14T12:33:01.953851"
+}
