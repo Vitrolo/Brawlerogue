@@ -330,27 +330,3 @@ function stage_x2() {
     var _rt = global.stage_rt;
     return (_rt.lock_active ? _rt.lock_x2 : global.stage.width) - CFG.stage.edge_margin;
 }
-
-/// Portoes provisórios fecham visualmente as bordas do setor de horda ativo.
-function stage_draw_horde_barriers() {
-    if (is_undefined(global.stage_rt) || !global.stage_rt.lock_active) return;
-    var _rt = global.stage_rt;
-    var _top = global.stage.floor_top - 142;
-    var _bottom = global.stage.floor_bottom + 10;
-    var _xs = [_rt.lock_x1, _rt.lock_x2];
-    for (var _i = 0; _i < 2; _i++) {
-        var _x = _xs[_i];
-        draw_set_alpha(0.85);
-        draw_set_colour(make_colour_rgb(18, 22, 42));
-        draw_rectangle(_x - 4, _top, _x + 4, _bottom, false);
-        draw_set_alpha(1);
-        draw_set_colour(global.stage.palette.accent);
-        draw_rectangle(_x - 4, _top, _x + 4, _bottom, true);
-        for (var _y = _top + 8; _y < _bottom; _y += 16) {
-            draw_set_colour(((_y div 16) mod 2 == 0) ? global.stage.palette.neon : global.stage.palette.accent);
-            draw_rectangle(_x - 2, _y, _x + 2, _y + 5, false);
-        }
-    }
-    draw_set_alpha(1);
-    draw_set_colour(c_white);
-}

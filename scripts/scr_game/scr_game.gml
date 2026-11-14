@@ -207,16 +207,19 @@ function hud_draw() {
     }
     if (global.run.seed != 0) hud_text(_gw - 18, _gh - 24, "SEED " + string(global.run.seed), make_colour_rgb(120, 128, 170));
 
-    // tipo da proxima sala escrito acima de cada porta de rota
-    draw_set_halign(fa_center);
-    var _open = stage_exits_open();
-    var _camx = round(global.cam.x);
-    var _sx = _gw / VIEW_W;
-    var _sy = _gh / VIEW_H;
-    with (obj_door) {
-        if (room_kind == "") continue;
-        var _col = _open ? room_kind_colour(room_kind) : make_colour_rgb(120, 124, 150);
-        hud_text((x - _camx) * _sx, (y - 96) * _sy, room_kind_label(room_kind), _col);
+    // Nas salas escuras a identificacao continua sobre o portal. No corredor,
+    // o jogador ve o tipo no aviso de interacao, sem texto pairando no cenario.
+    if (global.stage.kind != "main_map") {
+        draw_set_halign(fa_center);
+        var _open = stage_exits_open();
+        var _camx = round(global.cam.x);
+        var _sx = _gw / VIEW_W;
+        var _sy = _gh / VIEW_H;
+        with (obj_door) {
+            if (room_kind == "") continue;
+            var _col = _open ? room_kind_colour(room_kind) : make_colour_rgb(120, 124, 150);
+            hud_text((x - _camx) * _sx, (y - 96) * _sy, room_kind_label(room_kind), _col);
+        }
     }
 
     // faixa ao entrar em um bioma

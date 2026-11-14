@@ -93,7 +93,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - Cada mapa tem passagens fixas para tesouro, desafio/evento, loja e descanso. As salas especiais usam a mesma sala-casca do GameMaker, sem cenário, com largura fixa de 480 unidades.
 - O chefe definido pela arena `boss_arena` é instanciado no fim de cada corredor. A vitória avança o bioma; apenas o último chefe encerra a run.
 - O estado dos setores, dos itens no chão e das salas especiais fica em `global.run`. Voltar a uma sala especial não reinicia hordas limpas, armas coletadas, estoque comprado ou recompensas usadas.
-- Ao cruzar o gatilho de um setor, `encounter_update_map` trava os limites de movimento e a câmera. Quando todas as ondas acabam, as bordas se abrem e o jogador pode recuar ou seguir.
+- Ao cruzar o gatilho de um setor, `encounter_update_map` trava os limites de movimento e a câmera sem desenhar paredes nas bordas. Quando todas as ondas acabam, o jogador pode recuar ou seguir.
 - Os módulos de combate e especiais continuam em `scripts/scr_rooms`: eles fornecem layout, ondas, armas e interações para os mapas gerados.
 - Os mapas e as salas especiais usam o mesmo room do GameMaker como casca (`RM_STAGE`, hoje `rm_sandbox`); o corredor usa largura calculada e as salas especiais ficam fixas na largura da tela.
 
@@ -106,7 +106,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - **Arma nova:** um item em `CFG.weapons`, um golpe com `attack_define` e um `mod_define` de categoria `weapon`.
 - **Golpe novo:** `attack_define(nome, campos)`; os padrões e o significado de cada campo estão no topo de `scr_config`.
 - **Controle e remapeamento:** só `input_init`; o resto do jogo consulta `ACT.*`.
-- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o script. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`).
+- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o importador. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`). As entradas dos mapas são variantes completas desses fundos, montadas por `python tools/import_entrance_chunks.py` com as quatro posições fixas do corredor.
 
 ## Estrutura
 
@@ -129,13 +129,13 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - `objects/` — eventos finos que chamam os scripts. `obj_game` é persistente e nasce em `rm_boot`.
 - `rooms/` — `rm_boot`, `rm_lobby`, `rm_sandbox`. Os rooms são cascas vazias; o conteúdo vem dos dados.
 - `tools/gen_project.py` — gerou os `.yy`, o `.yyp` e os sprites placeholder iniciais. Não rode mais o script inteiro nem `gen_sprites`: ele sobrescreve o `.yyp` e troca a arte atual pelos bonecos de blocos.
-- `tools/import_pixellab.py` e `tools/pngio.py` — importam a arte do PixelLab (`tools/pixellab_raw`) para os sprites.
+- `tools/import_pixellab.py`, `tools/import_entrance_chunks.py` e `tools/pngio.py` — importam os cenários e montam os trechos integrados de entrada.
 
 ## Placeholders
 
 - Inimigos não têm animação própria de idle nem de levantar: o idle é a pose parada com o tronco 1 px mais baixo e o levantar é um quadro da queda.
 - Agarrão e arremesso reaproveitam frames de ataque; a arma na mão é uma barra desenhada por cima da personagem.
-- Portas, bloqueios e objetos interativos são formas provisórias desenhadas por código. Os interiores das salas opcionais são pretos até receberem arte própria.
+- As entradas do corredor fazem parte de variantes completas do cenário, com bordas idênticas ao fundo original; os nomes aparecem no aviso de interação. Portais simples continuam nas telas pretas de sala especial. As travas de combate permanecem invisíveis; objetos interativos ainda usam formas provisórias. Os interiores das salas opcionais são pretos até receberem arte própria.
 - A fonte é a padrão do GameMaker.
 - Não há som.
 
@@ -144,6 +144,6 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - Resolução interna 480x270, janela em múltiplo inteiro (até 3x), 60 fps.
 - Salas definidas em GML e montadas em tempo de execução; spawns e portas ficam no código, não no editor de rooms.
 - As ondas dos módulos são fixas; a seed escolhe módulos e ofertas, e não muda a composição das ondas.
-- As barreiras de horda limitam o setor ativo; fora do combate, o jogador pode percorrer o corredor de ponta a ponta.
+- Os limites invisíveis da horda prendem o jogador ao setor ativo; fora do combate, ele pode percorrer o corredor de ponta a ponta.
 - Inimigos nascem dentro da arena, piscando, em vez de entrar pelas laterais.
 - Não há pausa nem tela de opções.

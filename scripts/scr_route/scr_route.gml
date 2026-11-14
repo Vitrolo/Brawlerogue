@@ -361,11 +361,14 @@ function run_maps_build() {
 
         // Uma passagem fixa por local opcional em cada mapa. "event" reutiliza
         // o sistema de escolha existente como placeholder para o desafio.
+        // Os pontos sao fixos e coincidem com trechos de cenario predefinidos.
+        // Cada um permanece dentro do setor correspondente, mesmo quando a
+        // largura dos modulos de combate muda entre uma run e outra.
         var _special_specs = [
-            { kind: "reward", module_kind: "reward", label: "TESOURO", section: 0, inset: 56 },
-            { kind: "challenge", module_kind: "event", label: "DESAFIO", section: 1, inset: 56 },
-            { kind: "shop", module_kind: "shop", label: "LOJA", section: 2, inset: 56 },
-            { kind: "rest", module_kind: "rest", label: "DESCANSO", section: 3, inset: 96 }
+            { kind: "reward", module_kind: "reward", label: "TESOURO", section: 0, x: 584 },
+            { kind: "challenge", module_kind: "event", label: "DESAFIO", section: 1, x: 1224 },
+            { kind: "shop", module_kind: "shop", label: "LOJA", section: 2, x: 1864 },
+            { kind: "rest", module_kind: "rest", label: "DESCANSO", section: 3, x: 2576 }
         ];
         var _specials = [];
         for (var _i = 0; _i < array_length(_special_specs); _i++) {
@@ -380,12 +383,15 @@ function run_maps_build() {
             };
             global.run.special_rooms[$ _target_sid] = _state;
             var _section = _sections[_spec.section];
+            if (_spec.x < _section.x1 || _spec.x >= _section.x2) {
+                show_error("A entrada " + _spec.label + " ficou fora do setor fixo do mapa.", true);
+            }
             array_push(_specials, {
                 kind: _spec.kind,
                 room_kind: _spec.kind,
                 label: _spec.label,
                 target_sid: _target_sid,
-                x: _section.x2 - _spec.inset,
+                x: _spec.x,
                 y: 178,
                 requires_clear: true
             });

@@ -24,6 +24,37 @@ function stage_backdrop_info(_biome) {
     }
 }
 
+/// Variante de cenario que contem a entrada integrada para este tipo de local.
+function stage_backdrop_entrance(_biome, _kind) {
+    switch (_biome) {
+        case "sewer":
+            switch (_kind) {
+                case "reward": return spr_bg_chunk_sewer_reward;
+                case "challenge": return spr_bg_chunk_sewer_challenge;
+                case "shop": return spr_bg_chunk_sewer_shop;
+                case "rest": return spr_bg_chunk_sewer_rest;
+            }
+            break;
+        case "streets":
+            switch (_kind) {
+                case "reward": return spr_bg_chunk_streets_reward;
+                case "challenge": return spr_bg_chunk_streets_challenge;
+                case "shop": return spr_bg_chunk_streets_shop;
+                case "rest": return spr_bg_chunk_streets_rest;
+            }
+            break;
+        case "rooftops":
+            switch (_kind) {
+                case "reward": return spr_bg_chunk_rooftops_reward;
+                case "challenge": return spr_bg_chunk_rooftops_challenge;
+                case "shop": return spr_bg_chunk_rooftops_shop;
+                case "rest": return spr_bg_chunk_rooftops_rest;
+            }
+            break;
+    }
+    return -1;
+}
+
 function stage_draw_placeholder() {
     var _s = global.stage;
     if (variable_struct_exists(_s, "black_background") && _s.black_background) {
@@ -50,12 +81,28 @@ function stage_draw_placeholder() {
         var _flip = (_i mod 2 != 0);
         var _x = _i * _w + (_flip ? _w : 0);
         var _xs = _flip ? -1 : 1;
+        var _tile_spr = _spr;
+
+        // Um tile inteiro do fundo e substituido pela variante que ja contem
+        // a entrada. Como os pixels laterais sao os do cenario original, a
+        // emenda com os tiles vizinhos continua invisivel, inclusive espelhada.
+        if (_s.kind == "main_map") {
+            var _map = global.run.maps[_s.map_index];
+            for (var _j = 0; _j < array_length(_map.specials); _j++) {
+                var _special = _map.specials[_j];
+                if (floor(_special.x / _w) == _i) {
+                    var _chunk = stage_backdrop_entrance(_s.biome, _special.kind);
+                    if (_chunk >= 0) _tile_spr = _chunk;
+                    break;
+                }
+            }
+        }
 
         // parede e primeira faixa de chao
-        draw_sprite_part_ext(_spr, 0, 0, 0, _w, _info.band_y1, _x, _oy, _xs, 1, c_white, 1);
+        draw_sprite_part_ext(_tile_spr, 0, 0, 0, _w, _info.band_y1, _x, _oy, _xs, 1, c_white, 1);
         // a imagem pode comecar abaixo do topo da tela: estica a primeira linha para cima
         if (_oy > -16) {
-            draw_sprite_part_ext(_spr, 0, 0, 0, _w, 1, _x, -16, _xs, _oy + 16, c_white, 1);
+            draw_sprite_part_ext(_tile_spr, 0, 0, 0, _w, 1, _x, -16, _xs, _oy + 16, c_white, 1);
         }
         // repete a faixa de chao ate o fim da tela
         for (var _y = _oy + _info.band_y1; _y < _bottom; _y += _band_h) {
