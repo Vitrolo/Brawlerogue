@@ -55,8 +55,48 @@ function stage_backdrop_entrance(_biome, _kind) {
     return -1;
 }
 
+/// Interior fixo de cada sala especial. Evento usa o visual de desafio.
+function stage_backdrop_special(_biome, _kind) {
+    if (_kind == "event") _kind = "challenge";
+    switch (_biome) {
+        case "sewer":
+            switch (_kind) {
+                case "reward": return spr_interior_sewer_reward;
+                case "challenge": return spr_interior_sewer_challenge;
+                case "shop": return spr_interior_sewer_shop;
+                case "rest": return spr_interior_sewer_rest;
+            }
+            break;
+        case "streets":
+            switch (_kind) {
+                case "reward": return spr_interior_streets_reward;
+                case "challenge": return spr_interior_streets_challenge;
+                case "shop": return spr_interior_streets_shop;
+                case "rest": return spr_interior_streets_rest;
+            }
+            break;
+        case "rooftops":
+            switch (_kind) {
+                case "reward": return spr_interior_rooftops_reward;
+                case "challenge": return spr_interior_rooftops_challenge;
+                case "shop": return spr_interior_rooftops_shop;
+                case "rest": return spr_interior_rooftops_rest;
+            }
+            break;
+    }
+    return -1;
+}
+
 function stage_draw_placeholder() {
     var _s = global.stage;
+    var _special_spr = stage_backdrop_special(_s.biome, _s.kind);
+    if (_special_spr >= 0) {
+        // Modulos especiais ocupam exatamente a tela; a camera fica em x=0.
+        draw_set_alpha(1);
+        draw_set_colour(c_white);
+        draw_sprite_part(_special_spr, 0, 0, 0, VIEW_W, VIEW_H, 0, 0);
+        return;
+    }
     if (variable_struct_exists(_s, "black_background") && _s.black_background) {
         draw_set_alpha(1);
         draw_set_colour(c_black);
