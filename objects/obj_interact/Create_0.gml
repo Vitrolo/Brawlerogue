@@ -7,6 +7,7 @@ if (!variable_instance_exists(id, "durability")) durability = 0;
 if (!variable_instance_exists(id, "used")) used = false;
 if (!variable_instance_exists(id, "stock")) stock = undefined; // estoque preservado entre visitas
 if (!variable_instance_exists(id, "persistence_key")) persistence_key = "";
+if (!variable_instance_exists(id, "persistent_key")) persistent_key = "";   // arma fixa do mapa (pickup)
 if (!variable_instance_exists(id, "map_index")) map_index = -1;
 if (!variable_instance_exists(id, "drop_key")) drop_key = "";
 bob = 0;

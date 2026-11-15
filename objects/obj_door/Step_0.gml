@@ -1,5 +1,5 @@
 bob++;
-locked = requires_clear && !stage_exits_open();
+locked = (requires_clear && !stage_exits_open()) || challenge_active();
 near = false;
 
 var _p = instance_find(obj_player, 0);

@@ -131,6 +131,28 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - `tools/gen_project.py` — gerou os `.yy`, o `.yyp` e os sprites placeholder iniciais. Não rode mais o script inteiro nem `gen_sprites`: ele sobrescreve o `.yyp` e troca a arte atual pelos bonecos de blocos.
 - `tools/import_pixellab.py`, `tools/import_entrance_chunks.py` e `tools/pngio.py` — importam os cenários e montam os trechos integrados de entrada.
 
+## Novidades desta versão (ainda não testadas em jogo)
+
+Tudo abaixo foi escrito sem compilar: o GameMaker por linha de comando não roda sem licença nesta máquina. `python tools/check_project.py` confere nomes de funções, sprites, objetos e chaves, mas não substitui rodar com F5.
+
+- **Splash e menu:** o jogo abre em uma tela de carregamento (ESPAÇO pula) e depois no menu com NOVO JOGO, CONTINUAR e SAIR (`scripts/scr_menu`).
+- **Saves:** 3 slots (`save_slot_N.json` na pasta de dados do jogo). Guardam o progresso permanente e a run em andamento, gravada ao iniciar a run, ao limpar um trecho e ao derrotar um chefe. Na tela de slots, `U` apaga (`scripts/scr_meta`).
+- **Pausa:** `ESC` ou `P` (Start no controle). Permite abandonar a run ou voltar ao menu.
+- **Fim de run:** tela de resultados com tempo, abates, dano e fichas ganhas.
+- **Meta-progressão:** fichas compram melhorias permanentes no saco de pancada do lobby; o armário troca de personagem. Números em `CFG.meta` e `meta_upgrades_init`.
+- **Segunda personagem:** Safira (40 fichas), mais rápida e frágil, combo de 4 golpes e especial de investida. Os sprites são a Rubi com outras cores.
+- **Inimigos novos:** Atirador (tiro à distância), Escudeiro (bloqueia pela frente; agarre, acerte por trás ou use especial/arremesso/taco) e Homem-bomba (explode ao atacar e ao morrer, ferindo também inimigos). Entram nas ondas por sorteio em `enemy_type_variant`.
+- **Elites:** inimigos dourados com mais vida e dano, valem 4x moedas (`CFG.elite`).
+- **Chefes:** um por bioma (Rei do Esgoto, Rainha do Neon, O Chefe), com pesos de padrão próprios em `CFG.enemies`.
+- **Cenário:** barris, caixas e lixeiras quebráveis (golpe que derruba faz o objeto deslizar e derrubar inimigos); poça tóxica no esgoto, carro nas ruas e claraboia nos telhados (`scripts/scr_props`, números em `CFG.props`).
+- **Desafio:** a sala DESAFIO é uma arena com regra (sem bloquear, contra o tempo ou sem levar golpe) e prêmio maior (`scripts/scr_challenge`).
+- **Maldições e sinergias:** metade dos baús oferece uma maldição; quatro pares de modificadores ativam um bônus extra (`mods_init`).
+- **Corredor:** cada bioma sorteia 3 dos 4 tipos de sala especial e a ordem em que aparecem.
+- **Efeitos:** faíscas, poeira, rastro da esquiva e números de dano (`scripts/scr_fx`).
+- **Agarrão e arremesso** têm quadros próprios.
+
+Limites conhecidos: os inimigos novos, os dois chefes novos e a Safira são trocas de cor de sprites existentes (`python tools/make_variants.py`); objetos de cenário, carro, escudo e tiro são desenhados com retângulos; a arma na mão continua sendo uma barra; não há som.
+
 ## Placeholders
 
 - Inimigos não têm animação própria de idle nem de levantar: o idle é a pose parada com o tronco 1 px mais baixo e o levantar é um quadro da queda.

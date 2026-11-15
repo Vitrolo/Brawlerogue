@@ -2,10 +2,16 @@
 /// especiais. Cada opcao e um dado: { label, desc, cost, effects }.
 /// Efeitos: {type:"mod", mid} | {type:"hp", amount} | {type:"max_hp", amount}
 ///          | {type:"coins", amount} | {type:"random_passive"} | {type:"none"}
+///          | {type:"meta_upgrade", key} | {type:"set_char", cid} | {type:"unlock_char", cid}
+///          | {type:"challenge_start", rule}
+/// Campos opcionais da opcao: currency "chips" (cobra fichas em vez de moedas),
+/// disabled (nao pode ser escolhida), cancel (fecha sem gastar a sala).
+/// _kind "meta_shop" / "meta_char": telas do lobby, remontadas apos cada compra.
 
-function choice_open(_title, _options, _can_cancel, _keep_open, _source) {
+function choice_open(_title, _options, _can_cancel, _keep_open, _source, _kind = "") {
     global.choice = {
         title: _title,
+        kind: _kind,
         options: _options,
         index: 0,
         can_cancel: _can_cancel, // pode sair sem escolher
@@ -52,14 +58,24 @@ function choice_update() {
 
     if (input_pressed(ACT.INTERACT)) {
         var _opt = _ch.options[_ch.index];
-        if (_opt.cost > global.run.coins) {
-            toast_show("Moedas insuficientes.");
+        if (variable_struct_exists(_opt, "disabled") && _opt.disabled) return;
+        var _chips = variable_struct_exists(_opt, "currency") && _opt.currency == "chips";
+        if (_opt.cost > (_chips ? global.meta.chips : global.run.coins)) {
+            toast_show(_chips ? "Fichas insuficientes." : "Moedas insuficientes.");
             return;
         }
-        global.run.coins -= _opt.cost;
+        if (_chips) global.meta.chips -= _opt.cost;
+        else global.run.coins -= _opt.cost;
         var _seed = instance_exists(_ch.source) ? _ch.source.seed : 0;
         for (var _i = 0; _i < array_length(_opt.effects); _i++) {
             effect_apply(_opt.effects[_i], _seed);
+        }
+        if (_ch.kind == "meta_shop" || _ch.kind == "meta_char") {
+            // telas do lobby: a lista e refeita com os novos niveis e precos
+            _ch.options = (_ch.kind == "meta_shop") ? meta_shop_options() : meta_char_options();
+            _ch.index = min(_ch.index, array_length(_ch.options) - 1);
+            save_write();
+            return;
         }
         if (_ch.keep_open) {
             array_delete(_ch.options, _ch.index, 1); // item vendido sai da prateleira
@@ -73,7 +89,7 @@ function choice_update() {
                 _ch.index = min(_ch.index, array_length(_ch.options) - 1);
             }
         } else {
-            choice_close(true);
+            choice_close(!(variable_struct_exists(_opt, "cancel") && _opt.cancel));
         }
     }
 }
@@ -103,6 +119,27 @@ function effect_apply(_e, _seed) {
                 toast_show("Voce ja tem todas as passivas: +20 moedas.");
             }
             break;
+        case "meta_upgrade":
+            global.meta.upgrades[$ _e.key] = meta_level(_e.key) + 1;
+            run_reset(); // a vida mostrada no lobby ja reflete a melhoria
+            toast_show("Melhoria comprada!");
+            break;
+        case "unlock_char":
+            if (!array_contains(global.meta.chars, _e.cid)) array_push(global.meta.chars, _e.cid);
+            global.meta.char = _e.cid;
+            run_reset();
+            with (obj_player) pchar = player_char(); // troca na hora, ainda no lobby
+            toast_show(global.chars[$ _e.cid].name + " liberada!");
+            break;
+        case "set_char":
+            global.meta.char = _e.cid;
+            run_reset();
+            with (obj_player) pchar = player_char(); // troca na hora, ainda no lobby
+            toast_show("Personagem: " + global.chars[$ _e.cid].name);
+            break;
+        case "challenge_start":
+            challenge_start(_e.rule, _seed);
+            break;
     }
 }
 
@@ -111,7 +148,7 @@ function option_from_mod(_mid, _with_price) {
     return {
         label: _d.name,
         desc: _d.desc,
-        cost: _with_price ? _d.price : 0,
+        cost: _with_price ? round(_d.price * global.run.stats.shop_mult) : 0,
         effects: [{ type: "mod", mid: _mid }]
     };
 }
@@ -120,6 +157,11 @@ function reward_options(_seed) {
     var _ids = reward_roll(global.reward_pool, CFG.rewards.choices, _seed);
     var _opts = [];
     for (var _i = 0; _i < array_length(_ids); _i++) array_push(_opts, option_from_mod(_ids[_i], false));
+    // metade dos baus oferece tambem uma maldicao
+    if (decor_rand(_seed, 55) < 0.5) {
+        var _curse = reward_roll(global.curse_pool, 1, _seed + 13);
+        if (array_length(_curse) > 0) array_push(_opts, option_from_mod(_curse[0], false));
+    }
     return _opts;
 }
 
@@ -132,18 +174,18 @@ function shop_options(_seed) {
     return _opts;
 }
 
-/// Dois eventos simples, escolhidos pela seed da sala.
+/// Sala de desafio: a regra e fixa pela seed da sala (ver scr_challenge).
 function event_options(_seed) {
-    var _ignore = { label: "Ignorar", desc: "Nada acontece.", cost: 0, effects: [{ type: "none" }] };
-    if (_seed mod 2 == 0) {
-        return [
-            { label: "Arriscar", desc: "Perde 15 de vida e ganha uma passiva aleatoria.", cost: 0, effects: [{ type: "hp", amount: -15 }, { type: "random_passive" }] },
-            _ignore
-        ];
-    }
+    var _rule = challenge_rule_for_seed(_seed);
+    var _C = CFG.challenge;
     return [
-        { label: "Trocar", desc: "Perde 10 de vida maxima e ganha 40 moedas.", cost: 0, effects: [{ type: "max_hp", amount: -10 }, { type: "coins", amount: 40 }] },
-        _ignore
+        {
+            label: "Aceitar",
+            desc: "Arena fechada. Regra: " + challenge_rule_text(_rule) + ". Premio: recompensa a escolher, " + string(_C.reward_coins) + " moedas e " + string(_C.reward_chips) + " fichas.",
+            cost: 0,
+            effects: [{ type: "challenge_start", rule: _rule }]
+        },
+        { label: "Recusar", desc: "Nada acontece. Voce pode voltar depois.", cost: 0, effects: [{ type: "none" }], cancel: true }
     ];
 }
 
@@ -154,9 +196,9 @@ function choice_draw() {
     var _gh = CFG.view.gui_h;
     var _gold = make_colour_rgb(255, 210, 63);
     var _n = array_length(_ch.options);
-    var _cw = 200;
-    var _chh = 170;
     var _gap = 16;
+    var _cw = min(200, floor((_gw - 40 - (_n - 1) * _gap) / _n)); // muitas opcoes: cartoes mais estreitos
+    var _chh = 170;
     var _x0 = (_gw - (_n * _cw + (_n - 1) * _gap)) * 0.5;
     var _y0 = 190;
 
@@ -182,15 +224,21 @@ function choice_draw() {
             draw_rectangle(_x - 2, _y0 - 2, _x + _cw + 2, _y0 + _chh + 2, true);
             draw_triangle(_x + _cw * 0.5 - 8, _y0 - 16, _x + _cw * 0.5 + 8, _y0 - 16, _x + _cw * 0.5, _y0 - 6, false);
         }
-        draw_set_colour(_sel ? _gold : c_white);
-        draw_text(_x + _cw * 0.5, _y0 + 12, _opt.label);
-        draw_set_colour(c_white);
-        draw_text_ext(_x + _cw * 0.5, _y0 + 44, _opt.desc, 18, _cw - 24);
+        var _off = variable_struct_exists(_opt, "disabled") && _opt.disabled;
+        draw_set_colour(_off ? make_colour_rgb(120, 124, 150) : (_sel ? _gold : c_white));
+        draw_text_ext(_x + _cw * 0.5, _y0 + 10, _opt.label, 16, _cw - 12);
+        draw_set_colour(_off ? make_colour_rgb(120, 124, 150) : c_white);
+        draw_text_ext(_x + _cw * 0.5, _y0 + 50, _opt.desc, 18, _cw - 24);
         if (_opt.cost > 0) {
-            var _ok = (_opt.cost <= global.run.coins);
+            var _chips = variable_struct_exists(_opt, "currency") && _opt.currency == "chips";
+            var _ok = (_opt.cost <= (_chips ? global.meta.chips : global.run.coins));
             draw_set_colour(_ok ? _gold : make_colour_rgb(255, 90, 90));
-            draw_text(_x + _cw * 0.5, _y0 + _chh - 26, string(_opt.cost) + " moedas" + (_ok ? "" : " (falta)"));
+            draw_text(_x + _cw * 0.5, _y0 + _chh - 26, string(_opt.cost) + (_chips ? " fichas" : " moedas") + (_ok ? "" : " (falta)"));
         }
+    }
+    if (_ch.kind == "meta_shop" || _ch.kind == "meta_char") {
+        draw_set_colour(make_colour_rgb(45, 226, 230));
+        draw_text(_gw * 0.5, 166, "Fichas: " + string(global.meta.chips));
     }
 
     draw_set_colour(c_white);
@@ -213,6 +261,11 @@ function interact_spawn_for_stage(_def, _seed, _persist = undefined) {
         case "reward": instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "chest", seed: _seed, used: _used, persistence_key: _def.sid }); break;
         case "shop":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "shop", seed: _seed, used: _used, stock: _stock, persistence_key: _def.sid }); break;
         case "event":  instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "event", seed: _seed, used: _used, persistence_key: _def.sid }); break;
+        case "lobby":
+            // encostados na parede, sobre o saco de pancada e os armarios do cenario
+            instance_create_depth(105, _def.floor_top + 8, 0, obj_interact, { kind: "meta_shop" });
+            instance_create_depth(245, _def.floor_top + 8, 0, obj_interact, { kind: "char" });
+            break;
     }
     if (variable_struct_exists(_def, "pickups")) {
         for (var _i = 0; _i < array_length(_def.pickups); _i++) {
@@ -238,7 +291,9 @@ function interact_step() {
         case "rest":   global.prompt = _key + "DESCANSAR (cura " + string(ceil(global.run.hp_max * CFG.rewards.rest_heal_pct)) + ")"; break;
         case "chest":  global.prompt = _key + "ABRIR RECOMPENSA"; break;
         case "shop":   global.prompt = _key + "VER LOJA (" + string(global.run.coins) + " moedas)"; break;
-        case "event":  global.prompt = _key + "EXAMINAR"; break;
+        case "event":  global.prompt = _key + "DESAFIO"; break;
+        case "meta_shop": global.prompt = _key + "TREINAR (melhorias permanentes - " + string(global.meta.chips) + " fichas)"; break;
+        case "char":   global.prompt = _key + "ARMARIO (trocar personagem)"; break;
         case "weapon": global.prompt = _key + "PEGAR " + string_upper(weapon_def(wid).name) + " (" + string(durability) + " usos)"; break;
     }
 
@@ -260,7 +315,13 @@ function interact_step() {
             choice_open("LOJA", stock, true, true, id);
             break;
         case "event":
-            choice_open(global.stage.name, event_options(seed), false, false, id);
+            choice_open("DESAFIO - " + global.stage.name, event_options(seed), false, false, id);
+            break;
+        case "meta_shop":
+            choice_open("TREINO", meta_shop_options(), true, true, id, "meta_shop");
+            break;
+        case "char":
+            choice_open("PERSONAGEM", meta_char_options(), true, true, id, "meta_char");
             break;
         case "weapon":
             // troca: a arma que estava na mao fica no chao
@@ -297,10 +358,13 @@ function interact_draw() {
     var _dark = make_colour_rgb(6, 8, 20);
     var _col = used ? make_colour_rgb(90, 94, 120) : room_kind_colour(kind == "chest" ? "reward" : kind);
 
-    draw_set_alpha(0.3);
-    draw_set_colour(c_black);
-    draw_ellipse(x - 14, y - 3, x + 14, y + 3, false);
-    draw_set_alpha(1);
+    // os interativos do lobby ja estao pintados no cenario: so o marcador aparece
+    if (kind != "meta_shop" && kind != "char") {
+        draw_set_alpha(0.3);
+        draw_set_colour(c_black);
+        draw_ellipse(x - 14, y - 3, x + 14, y + 3, false);
+        draw_set_alpha(1);
+    }
 
     switch (kind) {
         case "rest": // banco

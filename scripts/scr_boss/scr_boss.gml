@@ -49,7 +49,7 @@ function boss_face(_p) {
 
 function boss_choose_pattern(_p) {
     var _near = abs(_p.x - x) < cfg.near_dist;
-    var _options = _near ? ["swipe", "swipe", "slam"] : ["dash", "slam", "dash"];
+    var _options = _near ? cfg.near_patterns : cfg.far_patterns;
     var _pick = _options[irandom(array_length(_options) - 1)];
     if (_pick == last_pattern) _pick = _options[irandom(array_length(_options) - 1)]; // evita repetir demais
     pattern = _pick;
@@ -164,6 +164,7 @@ function boss_step() {
         case BS.DASH:
             vy = 0;
             vx = dash_dir * cfg.dash.speed;
+            if (state_timer mod 3 == 0) fx_ghost(id, make_colour_rgb(255, 60, 90));
             var _edge = (dash_dir > 0) ? (stage_x2() - body_w) : (stage_x1() + body_w);
             if (state_timer >= atk.active || abs(x - _edge) < 2) {
                 hitbox_clear(id);
@@ -241,6 +242,7 @@ function boss_step() {
         vy = 0;
         hitbox_spawn(id, attack_get(cfg.slam.attack));
         cam_shake(6);
+        fx_dust(x, y, 14);
         actor_set_state(BS.SLAM);
     }
 
@@ -254,7 +256,8 @@ function boss_on_hit(_hit) {
     flash = CFG.feedback.flash_frames;
 
     if (hp <= 0) {
-        run_enemy_killed();
+        run_enemy_killed(4, x, y - z - body_h - 18);
+        fx_burst(x, y - z - body_h * 0.5, 30, make_colour_rgb(255, 210, 63), 4);
         hitbox_clear(id);
         vx = _hit.dir * 2;
         vy = 0;

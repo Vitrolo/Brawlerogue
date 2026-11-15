@@ -4,7 +4,10 @@ enum FLOW {
     PLAY,
     DEFEAT,
     VICTORY,
-    CHOICE   // tela de escolha aberta: o jogo espera a decisao
+    CHOICE,  // tela de escolha aberta: o jogo espera a decisao
+    MENU,    // splash, menu principal e slots de save (scr_menu)
+    PAUSE,
+    RESULTS  // resumo da run antes de voltar ao lobby
 }
 
 function game_init() {
@@ -12,6 +15,8 @@ function game_init() {
     gpu_set_texfilter(false);
 
     config_init();
+    meta_init();
+    fx_init();
     mods_init();
     input_init();
     player_states_init();
@@ -26,6 +31,7 @@ function game_init() {
     global.toast = { text: "", timer: 0 };
     global.last_run_result = "";
     global.flow = { state: FLOW.PLAY, timer: 0 };
+    ui_init(); // o jogo abre na splash, com o lobby carregado por baixo
 
     display_set_gui_size(CFG.view.gui_w, CFG.view.gui_h);
     var _scale = clamp(floor((display_get_height() - 80) / VIEW_H), 1, CFG.view.scale_max);
@@ -34,7 +40,7 @@ function game_init() {
 
 /// Atores e hitboxes param enquanto o congelamento de impacto esta ativo.
 function game_frozen() {
-    return global.hitstop > 0;
+    return global.hitstop > 0 || global.flow.state == FLOW.PAUSE || global.flow.state == FLOW.RESULTS;
 }
 
 function game_hitstop(_frames) {
@@ -45,16 +51,18 @@ function game_hitstop(_frames) {
 function game_begin_step() {
     input_update();
     global.prompt = "";
+    if (ui_update()) return; // menu, pausa ou resultados: o jogo nao anda
     if (global.hitstop > 0) global.hitstop--;
 
     if (global.run.active) global.run.time_frames++;
     encounter_update();
+    challenge_update();
     if (global.toast.timer > 0) global.toast.timer--;
     if (global.flow.state == FLOW.CHOICE) choice_update();
 
     if (global.flow.state == FLOW.DEFEAT || global.flow.state == FLOW.VICTORY) {
         global.flow.timer--;
-        if (global.flow.timer <= 0) run_end(global.flow.state == FLOW.VICTORY ? "victory" : "defeat");
+        if (global.flow.timer <= 0) results_open(global.flow.state == FLOW.VICTORY ? "victory" : "defeat");
     }
 }
 
@@ -64,7 +72,7 @@ function game_player_died() {
     global.flow.timer = CFG.flow.defeat_frames;
 }
 
-/// Chefe derrotado: interrompe a luta, mostra a vitoria e volta ao lobby.
+/// Ultimo chefe derrotado: interrompe a luta, mostra a vitoria e os resultados.
 function game_victory() {
     if (global.flow.state == FLOW.DEFEAT || global.flow.state == FLOW.VICTORY) return;
     global.choice = undefined;
@@ -80,6 +88,7 @@ function vfx_spark(_x, _y, _blocked) {
 }
 
 function vfx_update() {
+    fx_update();
     for (var _i = array_length(global.vfx) - 1; _i >= 0; _i--) {
         global.vfx[_i].life--;
         if (global.vfx[_i].life <= 0) array_delete(global.vfx, _i, 1);
@@ -134,6 +143,11 @@ function hud_bar(_x, _y, _w, _h, _ratio, _col) {
 
 function hud_draw() {
     if (is_undefined(global.stage)) return;
+    // telas cheias (splash, menu, slots) escondem a interface do jogo
+    if (global.flow.state == FLOW.MENU) {
+        ui_draw();
+        return;
+    }
 
     var _gw = CFG.view.gui_w;
     var _gh = CFG.view.gui_h;
@@ -174,9 +188,24 @@ function hud_draw() {
             for (var _j = 0; _j < array_length(_run.modifiers); _j++) {
                 if (_run.modifiers[_j] == _mid) _count++;
             }
-            hud_text(18, _ly, "+ " + mod_get(_mid).name + (_count > 1 ? " x" + string(_count) : ""), make_colour_rgb(170, 180, 220));
+            var _mcol = (mod_get(_mid).category == "curse") ? make_colour_rgb(255, 90, 90) : make_colour_rgb(170, 180, 220);
+            hud_text(18, _ly, "+ " + mod_get(_mid).name + (_count > 1 ? " x" + string(_count) : ""), _mcol);
             _ly += 16;
         }
+        for (var _i = 0; _i < array_length(_run.synergies); _i++) {
+            hud_text(18, _ly, "* " + synergy_get(_run.synergies[_i]).name, _gold);
+            _ly += 16;
+        }
+    }
+
+    // desafio em andamento
+    var _chal = challenge_state();
+    if (!is_undefined(_chal) && _chal.state == "active") {
+        draw_set_halign(fa_center);
+        var _ctxt = "DESAFIO: " + challenge_rule_text(_chal.rule);
+        if (_chal.rule == "timer") _ctxt += "   " + string(ceil(_chal.timer / 60)) + "s";
+        hud_text(_gw * 0.5, 84, _ctxt, make_colour_rgb(255, 60, 170));
+        draw_set_halign(fa_left);
     }
 
     // sala e progresso do encontro
@@ -241,9 +270,12 @@ function hud_draw() {
         draw_set_halign(fa_left);
         var _l = function(_a) { return input_action_label(_a); };
         hud_text(18, _gh - 44, "Mover: WASD   Pular: " + _l(ACT.JUMP) + "   Atacar: " + _l(ACT.ATTACK) + "   Bloquear: " + _l(ACT.BLOCK) + " (segurar)");
-        hud_text(18, _gh - 24, "Esquivar: " + _l(ACT.DODGE) + "   Especial: " + _l(ACT.SPECIAL) + "   Agarrar/arremessar: " + _l(ACT.GRAB) + "   Interagir: " + _l(ACT.INTERACT) + "   -  va ate a porta para iniciar a run");
+        hud_text(18, _gh - 24, "Esquivar: " + _l(ACT.DODGE) + "   Especial: " + _l(ACT.SPECIAL) + "   Agarrar/arremessar: " + _l(ACT.GRAB) + "   Interagir: " + _l(ACT.INTERACT) + "   Pausa: " + _l(ACT.PAUSE));
+        hud_text(18, 64, "FICHAS: " + string(global.meta.chips), _cyan);
+        hud_text(18, 82, "Personagem: " + player_char().name, make_colour_rgb(170, 180, 220));
         draw_set_halign(fa_center);
         if (global.last_run_result == "defeat") hud_text(_gw * 0.5, 80, "Ultima run: derrota", make_colour_rgb(255, 60, 170));
+        if (global.last_run_result == "abandon") hud_text(_gw * 0.5, 80, "Ultima run: abandonada", make_colour_rgb(170, 180, 220));
         if (global.last_run_result == "victory") hud_text(_gw * 0.5, 80, "Ultima run: VITORIA", _gold);
     }
 
@@ -253,6 +285,7 @@ function hud_draw() {
         hud_text(_gw * 0.5, 112, global.toast.text, _gold);
     }
 
+    fx_draw_gui();
     choice_draw();
 
     // derrota
@@ -264,7 +297,6 @@ function hud_draw() {
         draw_set_halign(fa_center);
         draw_set_valign(fa_middle);
         draw_text_transformed_colour(_gw * 0.5, _gh * 0.45, "DERROTA", 3, 3, 0, c_red, c_red, c_red, c_red, 1);
-        hud_text(_gw * 0.5, _gh * 0.45 + 50, "Voltando ao lobby...");
     }
 
     // vitoria
@@ -276,12 +308,10 @@ function hud_draw() {
         draw_set_halign(fa_center);
         draw_set_valign(fa_middle);
         draw_text_transformed_colour(_gw * 0.5, _gh * 0.4, "VITORIA", 3, 3, 0, _gold, _gold, _gold, _gold, 1);
-        var _secs = _run.time_frames div 60;
-        var _ss = string(_secs mod 60);
-        if (string_length(_ss) < 2) _ss = "0" + _ss;
-        hud_text(_gw * 0.5, _gh * 0.4 + 50, "Chefe derrotado em " + string(_secs div 60) + ":" + _ss);
-        hud_text(_gw * 0.5, _gh * 0.4 + 74, "Voltando ao lobby...");
+        hud_text(_gw * 0.5, _gh * 0.4 + 50, "Ultimo chefe derrotado em " + time_text(_run.time_frames));
     }
+
+    ui_draw(); // pausa e resultados por cima de tudo
 
     draw_set_halign(fa_left);
     draw_set_valign(fa_top);

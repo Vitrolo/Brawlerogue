@@ -289,6 +289,7 @@ function run_maps_build() {
 
         var _sections = [];
         var _pickups = [];
+        var _props = [];
         var _offset = 0;
         for (var _i = 0; _i < array_length(_selected); _i++) {
             var _src = stage_get(_selected[_i]);
@@ -299,9 +300,10 @@ function run_maps_build() {
                 for (var _e = 0; _e < array_length(_wave_src); _e++) {
                     var _enemy = _wave_src[_e];
                     array_push(_wave, {
-                        type: _enemy.type,
+                        type: enemy_type_variant(_enemy.type, _b),
                         x: _enemy.x + _offset,
-                        y: _enemy.y
+                        y: _enemy.y,
+                        elite: random(1) < CFG.elite.chance[min(_b, array_length(CFG.elite.chance) - 1)]
                     });
                 }
                 array_push(_waves, _wave);
@@ -333,6 +335,9 @@ function run_maps_build() {
                     });
                 }
             }
+            // quebraveis e perigo do bioma neste trecho
+            var _rolled = props_roll_section(_biome.bid, _offset, _offset + _src.width);
+            for (var _p = 0; _p < array_length(_rolled); _p++) array_push(_props, _rolled[_p]);
             _offset += _src.width;
         }
 
@@ -340,6 +345,8 @@ function run_maps_build() {
         // mas a luta acontece no fim do corredor do proprio bioma.
         var _boss_def = stage_get(CFG.run.boss_stage);
         var _boss_source = _boss_def.encounter.waves[0][0];
+        // cada bioma tem o seu chefe; o ultimo e o chefe final
+        var _boss_type = CFG.run.biome_bosses[min(_b, array_length(CFG.run.biome_bosses) - 1)];
         var _boss_width = _boss_def.width;
         var _boss_x1 = _offset;
         var _boss_x2 = _offset + _boss_width;
@@ -347,32 +354,48 @@ function run_maps_build() {
             id: array_length(_sections),
             kind: "boss",
             sid: _boss_def.sid,
-            name: "CHEFE",
+            name: CFG.enemies[$ _boss_type].name,
             x1: _boss_x1,
             x2: _boss_x2,
             trigger_x: _boss_x1 + _boss_def.encounter.trigger_x,
             lock_x1: _boss_x1,
             lock_x2: _boss_x2,
-            waves: [[{ type: _boss_source.type, x: _boss_x1 + _boss_source.x, y: _boss_source.y }]],
+            waves: [[{ type: _boss_type, x: _boss_x1 + _boss_source.x, y: _boss_source.y, elite: false }]],
             state: "pending",
             wave_index: 0
         });
         _offset = _boss_x2;
 
-        // Uma passagem fixa por local opcional em cada mapa. "event" reutiliza
-        // o sistema de escolha existente como placeholder para o desafio.
-        // Os pontos sao fixos e coincidem com trechos de cenario predefinidos.
-        // Cada um permanece dentro do setor correspondente, mesmo quando a
-        // largura dos modulos de combate muda entre uma run e outra.
+        // Entradas das salas opcionais. O tipo "challenge" usa os modulos "event".
+        // Variedade: cada corredor sorteia quais tipos aparecem (special_slots de 4)
+        // e em que ordem. "img_x" e a posicao da entrada dentro da imagem do
+        // cenario (768 px); o fundo se repete espelhando os tiles impares, entao
+        // em um tile impar a entrada aparece em 768 - img_x.
         var _special_specs = [
-            { kind: "reward", module_kind: "reward", label: "TESOURO", section: 0, x: 584 },
-            { kind: "challenge", module_kind: "event", label: "DESAFIO", section: 1, x: 1224 },
-            { kind: "shop", module_kind: "shop", label: "LOJA", section: 2, x: 1864 },
-            { kind: "rest", module_kind: "rest", label: "DESCANSO", section: 3, x: 2576 }
+            { kind: "reward", module_kind: "reward", label: "TESOURO", img_x: 584 },
+            { kind: "challenge", module_kind: "event", label: "DESAFIO", img_x: 312 },
+            { kind: "shop", module_kind: "shop", label: "LOJA", img_x: 328 },
+            { kind: "rest", module_kind: "rest", label: "DESCANSO", img_x: 496 }
         ];
+        array_shuffle_ext(_special_specs);
+        var _tiles = [0, 1, 2, 3];
+        array_shuffle_ext(_tiles);
+        var _slot_count = min(CFG.run.special_slots, array_length(_special_specs));
         var _specials = [];
-        for (var _i = 0; _i < array_length(_special_specs); _i++) {
+        for (var _i = 0; _i < _slot_count; _i++) {
             var _spec = _special_specs[_i];
+            // primeiro tile livre em que a entrada cai antes da arena do chefe
+            _spec.x = -1;
+            for (var _t = 0; _t < array_length(_tiles); _t++) {
+                var _tile = _tiles[_t];
+                var _wx = _tile * 768 + ((_tile mod 2 == 0) ? _spec.img_x : 768 - _spec.img_x);
+                if (_wx < _boss_x1 - 60) {
+                    _spec.x = _wx;
+                    array_delete(_tiles, _t, 1);
+                    break;
+                }
+            }
+            if (_spec.x < 0) continue;
             var _target_sid = room_pick_fallback(_biome.bid, _spec.module_kind, "mid", _used);
             if (is_undefined(_target_sid)) show_error("Falta a sala opcional " + _spec.label + " para " + _biome.name + ".", true);
             _used[$ _target_sid] = true;
@@ -382,10 +405,6 @@ function run_maps_build() {
                 stock: undefined
             };
             global.run.special_rooms[$ _target_sid] = _state;
-            var _section = _sections[_spec.section];
-            if (_spec.x < _section.x1 || _spec.x >= _section.x2) {
-                show_error("A entrada " + _spec.label + " ficou fora do setor fixo do mapa.", true);
-            }
             array_push(_specials, {
                 kind: _spec.kind,
                 room_kind: _spec.kind,
@@ -409,18 +428,33 @@ function run_maps_build() {
             pickups: _pickups,
             pickups_taken: {},
             ground_weapons: [],
+            props: _props,      // quebraveis e perigos (scr_props)
             completed: false
         };
         array_push(_maps, _map);
+    }
 
+    global.run.maps = _maps;
+    run_maps_define_stages();
+    return _maps;
+}
+
+/// Registra a sala de cada corredor a partir de global.run.maps. Separado da
+/// geracao para que uma run carregada do save recrie as mesmas salas.
+function run_maps_define_stages() {
+    var _maps = global.run.maps;
+    for (var _b = 0; _b < array_length(_maps); _b++) {
+        var _map = _maps[_b];
+        var _biome = biome_get(_map.biome);
+        if (!variable_struct_exists(_map, "props")) _map.props = [];
         stage_define({
-            sid: _map_sid,
+            sid: _map.sid,
             name: _biome.name,
             biome: _biome.bid,
             kind: "main_map",
             map_index: _b,
             room_asset: RM_STAGE,
-            width: _offset,
+            width: _map.width,
             floor_top: 178,
             floor_bottom: 258,
             player_spawn: { x: 60, y: 222 },
@@ -430,8 +464,22 @@ function run_maps_build() {
             palette: _biome.palette
         });
     }
+}
 
-    return _maps;
+/// Troca parte dos inimigos basicos das salas pelos tipos novos, mais a cada bioma.
+function enemy_type_variant(_type, _biome_index) {
+    var _r = random(1);
+    var _k = clamp(_biome_index, 0, 2);
+    var _shooter_chance = [0.25, 0.35, 0.4];
+    var _bomber_chance = [0.08, 0.12, 0.14];
+    var _shield_chance = [0, 0.16, 0.2];
+    if (_type == "runner") {
+        if (_r < _shooter_chance[_k]) return "shooter";
+    } else if (_type == "thug") {
+        if (_r < _bomber_chance[_k]) return "bomber";
+        if (_r < _bomber_chance[_k] + _shield_chance[_k]) return "shield";
+    }
+    return _type;
 }
 
 function run_current_map() {
@@ -531,9 +579,11 @@ function run_map_boss_cleared() {
     var _map_index = global.run.map_index;
     _map.completed = true;
     run_map_write(_map_index, _map);
+    global.run.bosses_killed += 1;
 
     if (_map_index + 1 < array_length(global.run.maps)) {
         global.run.map_index = _map_index + 1;
+        save_write(); // ponto de controle: inicio do proximo bioma
         stage_goto(global.run.maps[global.run.map_index].sid);
     } else {
         game_victory();

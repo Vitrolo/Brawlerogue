@@ -37,6 +37,25 @@ function enemy_create() {
     draw_scale = cfg.scale;
     anim_clock = irandom(30);
 
+    // comportamentos opcionais do tipo
+    is_ranged = variable_struct_exists(cfg, "projectile");
+    has_shield = variable_struct_exists(cfg, "shield") && cfg.shield;
+    explodes = variable_struct_exists(cfg, "explode") && cfg.explode;
+    exploded = false;
+    dmg_out = 1;
+
+    // Elite: mais vida, mais dano, maior e dourado; vale mais moedas.
+    if (!variable_instance_exists(id, "elite")) elite = false;
+    if (elite && cfg.ai != "boss") {
+        hp_max = ceil(hp_max * CFG.elite.hp_mult);
+        hp = hp_max;
+        dmg_out = CFG.elite.damage_mult;
+        draw_scale *= CFG.elite.scale_mult;
+        tint = make_colour_rgb(255, 214, 110);
+    } else {
+        elite = false;
+    }
+
     on_hit = function(_hit) { return (cfg.ai == "boss") ? boss_on_hit(_hit) : enemy_on_hit(_hit); };
     if (cfg.ai == "boss") boss_create();
 }
@@ -154,8 +173,17 @@ function enemy_step() {
             vy = 0;
             vx = (state_timer <= atk.startup) ? facing * atk.lunge : 0;
             if (!atk_spawned && state_timer > atk.startup) {
-                hitbox_spawn(id, atk);
                 atk_spawned = true;
+                if (explodes) {
+                    // homem-bomba: o proprio golpe e a explosao, e ele vai junto
+                    enemy_explode();
+                    instance_destroy();
+                    return;
+                } else if (is_ranged) {
+                    projectile_spawn(id, atk, cfg.projectile, dmg_out);
+                } else {
+                    hitbox_spawn(id, atk, dmg_out);
+                }
             }
             if (state_timer >= atk.startup + atk.active + atk.recovery) {
                 has_token = false;
@@ -187,6 +215,10 @@ function enemy_step() {
             if (actor_on_ground()) {
                 vx *= CFG.physics.knock_friction;
                 down_timer++;
+                if (down_timer == 1) {
+                    fx_dust(x, y, 8);
+                    hazard_knockdown_landed(id); // claraboia dos telhados
+                }
                 if (hp <= 0) {
                     vx = 0;
                     actor_set_state(ES.DEAD);
@@ -226,8 +258,11 @@ function enemy_step() {
                 // caiu: leva o dano do arremesso e fica derrubado
                 hitbox_clear(id);
                 var _was_alive = (hp > 0);
-                hp = max(0, hp - CFG.player.grab.throw_damage * global.run.stats.damage_mult);
-                if (_was_alive && hp <= 0) run_enemy_killed();
+                var _throw_dmg = CFG.player.grab.throw_damage * global.run.stats.damage_mult;
+                hp = max(0, hp - _throw_dmg);
+                global.run.dmg_dealt += _throw_dmg;
+                fx_number(x, y - body_h - 6, round(_throw_dmg), c_white);
+                if (_was_alive && hp <= 0) run_enemy_killed(elite ? CFG.elite.coin_mult : 1, x, y - body_h - 18);
                 flash = CFG.feedback.flash_frames;
                 cam_shake(CFG.feedback.shake_hit);
                 down_timer = 0;
@@ -238,7 +273,11 @@ function enemy_step() {
         case ES.DEAD:
             vx = 0;
             vy = 0;
-            if (state_timer >= cfg.dead_frames) instance_destroy();
+            if (state_timer >= cfg.dead_frames) {
+                if (explodes && !exploded) enemy_explode(); // a bomba estoura mesmo com ele caido
+                instance_destroy();
+                return;
+            }
             break;
     }
 
@@ -246,12 +285,37 @@ function enemy_step() {
     enemy_animate();
 }
 
+/// Explosao do homem-bomba: acerta todo mundo em volta, inclusive outros inimigos.
+function enemy_explode() {
+    exploded = true;
+    hp = 0;
+    has_token = false;
+    state = ES.DEAD; // nao e atingido pela propria explosao
+    var _col = make_colour_rgb(255, 150, 40);
+    fx_burst(x, y - 16, 26, _col, 4.2);
+    fx_burst(x, y - 16, 12, c_white, 2.6);
+    fx_dust(x, y, 10);
+    cam_shake(5);
+    combat_area_hit(x, y, attack_get("bomber_blast"), -1, dmg_out);
+}
+
+/// Escudo levantado: so enquanto esta de pe e nao esta golpeando.
+function enemy_shield_up() {
+    return has_shield && (state == ES.MOVE || state == ES.TELEGRAPH || state == ES.RECOVER || state == ES.SPAWN);
+}
+
 function enemy_on_hit(_hit) {
     // derrubado, levantando ou morto nao recebe dano
     if (state == ES.KNOCKDOWN || state == ES.GETUP || state == ES.DEAD || state == ES.THROWN) return HITRES.IGNORED;
 
+    // Escudeiro: golpes comuns vindos da frente batem no escudo
+    if (enemy_shield_up() && !_hit.atk.guard_break && _hit.dir == -facing) {
+        vx = _hit.dir * 0.8;
+        return HITRES.BLOCKED;
+    }
+
     hp = max(0, hp - _hit.damage);
-    if (hp <= 0) run_enemy_killed();
+    if (hp <= 0) run_enemy_killed(elite ? CFG.elite.coin_mult : 1, x, y - z - body_h - 18);
     has_token = false;
     hitbox_clear(id);
     flash = CFG.feedback.flash_frames;
@@ -305,7 +369,34 @@ function enemy_draw() {
     if (state == ES.DEAD && (state_timer div 4) mod 2 == 1) return;
     // recem-chegado pisca enquanto ainda nao age
     if (state == ES.SPAWN && (state_timer div 3) mod 2 == 1) return;
+
+    // homem-bomba: pisca vermelho no aviso e depois de cair
+    var _base_tint = tint;
+    if (explodes && (state == ES.TELEGRAPH || state == ES.DEAD) && (state_timer div 3) mod 2 == 0) {
+        tint = make_colour_rgb(255, 70, 50);
+    }
     actor_draw();
+    tint = _base_tint;
+
+    // escudo: placa na frente do corpo (PLACEHOLDER desenhado com retangulos)
+    if (enemy_shield_up()) {
+        var _sx = x + facing * (body_w + 3);
+        var _sy = y - z;
+        draw_set_colour(make_colour_rgb(70, 90, 120));
+        draw_rectangle(_sx - 2, _sy - 34, _sx + 2, _sy - 8, false);
+        draw_set_colour(make_colour_rgb(160, 200, 230));
+        draw_rectangle(_sx - 2, _sy - 34, _sx + 2, _sy - 8, true);
+        draw_set_colour(c_white);
+    }
+    // elite: tres pontos dourados acima da cabeca
+    if (elite && state != ES.DEAD) {
+        var _ey = y - z - body_h * draw_scale - 22;
+        draw_set_colour(make_colour_rgb(255, 210, 63));
+        draw_rectangle(x - 5, _ey, x - 4, _ey + 2, false);
+        draw_rectangle(x - 1, _ey - 2, x, _ey + 2, false);
+        draw_rectangle(x + 3, _ey, x + 4, _ey + 2, false);
+        draw_set_colour(c_white);
+    }
     // aviso de ataque: "!" acima da cabeca (forma + cor)
     if (state == ES.TELEGRAPH) {
         var _yy = y - z - body_h - 16 - ((state_timer div 4) mod 2);

@@ -59,6 +59,7 @@ function stage_goto(_sid) {
 function stage_build() {
     var _def = stage_get(global.stage_next_id);
     global.stage = _def;
+    fx_clear();
     // RM_STAGE e apenas a casca do mapa; seus limites reais acompanham o trecho.
     // Sem isso, o corredor (maior que o room do editor) pode parar de desenhar cedo.
     room_width = _def.width;
@@ -128,6 +129,17 @@ function stage_build() {
                 durability: _drop.durability,
                 map_index: _def.map_index,
                 drop_key: _drop.key
+            });
+        }
+
+        // quebraveis e perigos do corredor (os destruidos nao voltam)
+        for (var _i = 0; _i < array_length(_map.props); _i++) {
+            var _prop = _map.props[_i];
+            if (!_prop.alive) continue;
+            instance_create_depth(_prop.x, _prop.y, 0, obj_prop, {
+                kind: _prop.kind,
+                map_index: _def.map_index,
+                prop_index: _i
             });
         }
 
@@ -217,7 +229,10 @@ function encounter_spawn_wave(_index) {
     var _n = min(array_length(_wave), CFG.encounter.max_wave_size);
     for (var _i = 0; _i < _n; _i++) {
         var _e = _wave[_i];
-        instance_create_depth(_e.x, _e.y, 0, obj_enemy, { enemy_type: _e.type });
+        instance_create_depth(_e.x, _e.y, 0, obj_enemy, {
+            enemy_type: _e.type,
+            elite: variable_struct_exists(_e, "elite") && _e.elite
+        });
     }
 }
 
@@ -307,7 +322,12 @@ function encounter_update_map() {
             _rt.enc_state = ENC.CLEARED;
             _rt.go_timer = CFG.encounter.go_frames;
             run_map_mark_section(_rt.map_index, _rt.section_index, "cleared", _rt.enc_wave);
-            if (_section.kind == "boss") run_map_boss_cleared();
+            global.run.sections_cleared += 1;
+            if (_section.kind == "boss") {
+                run_map_boss_cleared();
+            } else {
+                run_checkpoint(); // grava o progresso no slot
+            }
         }
     } else if (_rt.enc_state == ENC.BETWEEN) {
         _rt.enc_timer--;

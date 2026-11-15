@@ -63,6 +63,16 @@ function hitbox_check() {
         if (!combat_overlap(_hb, id)) continue;
         combat_resolve_hit(_hb, id);
     }
+    // objetos de cenario: so golpes do jogador quebram ou chutam
+    if (instance_exists(_hb) && _hb.team == TEAM.PLAYER) {
+        with (obj_prop) {
+            if (!instance_exists(_hb)) continue;
+            if (!breakable || array_contains(_hb.hit_list, id)) continue;
+            if (!combat_overlap(_hb, id)) continue;
+            array_push(_hb.hit_list, id);
+            prop_hit(_hb.atk, _hb.facing);
+        }
+    }
 }
 
 function combat_resolve_hit(_hb, _target) {
@@ -94,13 +104,41 @@ function combat_deliver(_target, _hit, _owner) {
     if (_res == HITRES.BLOCKED) {
         game_hitstop(2);
         vfx_spark(_target.x - _hit.dir * 6, _fx_y, true);
+        fx_burst(_target.x - _hit.dir * 6, _fx_y, 4, make_colour_rgb(45, 226, 230), 1.6);
     } else {
         game_hitstop(_hit.atk.hitstop);
         vfx_spark(_target.x, _fx_y, false);
         cam_shake(_target.team == TEAM.PLAYER ? CFG.feedback.shake_hurt : CFG.feedback.shake_hit);
+        // faiscas e numero de dano: dourado no inimigo, vermelho no jogador
+        var _on_player = (_target.team == TEAM.PLAYER);
+        var _col = _on_player ? make_colour_rgb(255, 90, 90) : make_colour_rgb(255, 210, 63);
+        fx_burst(_target.x, _fx_y, _hit.atk.knockdown ? 10 : 5, _col, _hit.atk.knockdown ? 3 : 2.2);
+        fx_number(_target.x, _target.y - _target.z - _target.body_h - 6, round(_hit.damage), _on_player ? _col : c_white);
+        if (!_on_player && global.run.active) global.run.dmg_dealt += _hit.damage;
         if (instance_exists(_owner)) _owner.on_hit_landed(_hit);
     }
     return _res;
+}
+
+/// Explosao ou golpe de area sem dono: acerta na hora todos os atores no volume
+/// do golpe. _team: time que NAO e atingido (-1 = acerta todos).
+function combat_area_hit(_x, _y, _atk, _team, _dmg_mult = 1) {
+    var _vol = { x: _x, y: _y, z: 0, facing: 1, atk: _atk };
+    var _targets = [];
+    with (obj_actor) {
+        if (team == _team) continue;
+        if (combat_overlap(_vol, id)) array_push(_targets, id);
+    }
+    for (var _i = 0; _i < array_length(_targets); _i++) {
+        var _t = _targets[_i];
+        if (!instance_exists(_t)) continue;
+        combat_deliver(_t, {
+            atk: _atk,
+            damage: _atk.damage * _dmg_mult,
+            dir: (_t.x >= _x) ? 1 : -1,
+            attacker: noone
+        }, noone);
+    }
 }
 
 /// Golpe sem hitbox, aplicado direto em um alvo ja definido.

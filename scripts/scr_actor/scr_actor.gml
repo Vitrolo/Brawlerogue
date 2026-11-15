@@ -20,6 +20,7 @@ function actor_init(_hp_max, _body_w, _body_h) {
     team = TEAM.ENEMY;
     image_speed = 0;
     draw_scale = 1;
+    tint = c_white; // cor multiplicada no sprite (elites, avisos)
     // Substituidos por jogador/inimigo.
     on_hit = function(_hit) { return HITRES.IGNORED; };
     on_hit_landed = function(_hit) {};
@@ -72,6 +73,6 @@ function actor_draw() {
     var _alpha = 1;
     if (invuln > 0 && (invuln div 3) mod 2 == 0) _alpha = 0.4; // pisca enquanto invulneravel
     if (flash > 0) gpu_set_fog(true, c_white, 0, 0);            // clarao branco ao levar golpe
-    draw_sprite_ext(sprite_index, image_index, round(x), round(y - z), facing * draw_scale, draw_scale, 0, c_white, _alpha);
+    draw_sprite_ext(sprite_index, image_index, round(x), round(y - z), facing * draw_scale, draw_scale, 0, tint, _alpha);
     if (flash > 0) gpu_set_fog(false, c_white, 0, 0);
 }

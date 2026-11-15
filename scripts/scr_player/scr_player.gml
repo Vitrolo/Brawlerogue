@@ -55,7 +55,9 @@ function player_create() {
     actor_init(_P.hp_max, _P.body_w, _P.body_h);
     team = TEAM.PLAYER;
     state = PS.IDLE;
-    sprite_index = spr_player_idle;
+    pchar = player_char(); // personagem em uso: golpes e sprites (scr_meta)
+    sprite_index = pchar.sprites.idle;
+    counter_ready = false; // proximo golpe reforcado apos uma esquiva perfeita
 
     combo_index = 0;
     atk = undefined;
@@ -136,7 +138,7 @@ function player_step() {
                 if (_ax != 0) facing = sign(_ax);
                 if (buf_attack > 0) {
                     buf_attack = 0;
-                    atk = attack_get(_P.air_attack);
+                    atk = attack_get(pchar.air_attack);
                     atk_spawned = false;
                     atk_connected = false;
                     actor_set_state(PS.AIR_ATTACK);
@@ -145,7 +147,7 @@ function player_step() {
 
             case PS.AIR_ATTACK:
                 if (!atk_spawned && state_timer > atk.startup) {
-                    hitbox_spawn(id, atk, global.run.stats.damage_mult);
+                    hitbox_spawn(id, atk, player_damage_mult());
                     atk_spawned = true;
                 }
                 break;
@@ -165,7 +167,9 @@ function player_step() {
                 var _k = 1 - state_timer / _P.dodge.frames; // desacelera no fim
                 vx = dodge_dx * _P.dodge.speed * (0.4 + 0.6 * _k);
                 vy = dodge_dy * _P.dodge.speed * 0.6 * (0.4 + 0.6 * _k);
+                if (state_timer mod 3 == 0) fx_ghost(id, make_colour_rgb(45, 226, 230)); // rastro
                 if (state_timer >= _P.dodge.frames) {
+                    hitbox_clear(id); // fim da ombrada, se houver
                     dodge_cd = _P.dodge.cooldown;
                     vx = 0;
                     vy = 0;
@@ -198,6 +202,10 @@ function player_step() {
                 if (actor_on_ground()) {
                     vx *= CFG.physics.knock_friction;
                     down_timer++;
+                    if (down_timer == 1) {
+                        fx_dust(x, y, 8);
+                        hazard_knockdown_landed(id); // claraboia dos telhados
+                    }
                     if (global.run.hp <= 0) {
                         vx = 0;
                         actor_set_state(PS.DEAD);
@@ -240,6 +248,7 @@ function player_step() {
         hitbox_clear(id);
         vx = 0;
         vy = 0;
+        fx_dust(x, y, 4);
         actor_set_state(PS.LAND);
     }
 
@@ -258,7 +267,7 @@ function player_try_actions() {
     if (buf_special > 0 && global.run.special >= _sp.cost) {
         buf_special = 0;
         global.run.special -= _sp.cost;
-        atk = attack_get(_sp.attack);
+        atk = attack_get(pchar.special);
         atk_spawned = false;
         atk_connected = false;
         vx = 0;
@@ -287,7 +296,7 @@ function player_try_actions() {
         actor_set_state(PS.JUMP_START);
         return true;
     }
-    if (input_held(ACT.BLOCK)) {
+    if (input_held(ACT.BLOCK) && !challenge_blocks_guard()) {
         vx = 0;
         vy = 0;
         actor_set_state(PS.BLOCK);
@@ -296,17 +305,27 @@ function player_try_actions() {
     return false;
 }
 
+/// Multiplicador de dano do proximo golpe. Gasta o bonus do contra-golpe.
+function player_damage_mult() {
+    var _m = global.run.stats.damage_mult;
+    if (counter_ready) {
+        counter_ready = false;
+        _m *= 1 + global.run.stats.counter_mult;
+    }
+    return _m;
+}
+
 function player_start_attack(_index) {
     buf_attack = 0;
     combo_index = _index;
-    atk = attack_get(CFG.player.combo[_index]);
+    atk = attack_get(pchar.combo[_index]);
     atk_weapon = false;
     var _wp = global.run.weapon;
     if (_index == 0 && !is_undefined(_wp)) {
         // WeaponAttack: golpe unico da arma no lugar do combo
         atk = attack_get(weapon_def(_wp.wid).attack);
         atk_weapon = true;
-        combo_index = array_length(CFG.player.combo) - 1; // nao encadeia
+        combo_index = array_length(pchar.combo) - 1; // nao encadeia
     }
     atk_spawned = false;
     atk_connected = false;
@@ -326,6 +345,10 @@ function player_start_dodge() {
     dodge_dy = _ay;
     if (_ax != 0) facing = sign(_ax);
     actor_set_state(PS.DODGE);
+    // Ombrada: com o modificador, a esquiva carrega uma hitbox
+    if (global.run.stats.dodge_damage > 0) {
+        hitbox_spawn(id, attack_get(pchar.dodge_attack), global.run.stats.dodge_damage * global.run.stats.damage_mult);
+    }
 }
 
 /// Ataque de chao e especial: preparacao -> hitbox ativa -> recuperacao.
@@ -335,10 +358,16 @@ function player_attack_update(_ax) {
     var _total = _active_end + atk.recovery;
 
     vy = 0;
-    vx = (state_timer <= atk.startup) ? facing * atk.lunge : 0;
+    // avanco na preparacao (lunge) e, em investidas, durante a hitbox ativa (rush)
+    if (state_timer <= atk.startup) vx = facing * atk.lunge;
+    else if (state_timer <= _active_end) vx = facing * atk.rush;
+    else vx = 0;
+    if (atk.rush > 0 && state_timer > atk.startup && state_timer <= _active_end && state_timer mod 2 == 0) {
+        fx_ghost(id, make_colour_rgb(255, 60, 170));
+    }
 
     if (!atk_spawned && state_timer > atk.startup) {
-        hitbox_spawn(id, atk, global.run.stats.damage_mult);
+        hitbox_spawn(id, atk, player_damage_mult());
         atk_spawned = true;
     }
 
@@ -349,7 +378,7 @@ function player_attack_update(_ax) {
             return;
         }
         // proximo golpe do combo
-        var _can_chain = combo_index < array_length(_P.combo) - 1
+        var _can_chain = combo_index < array_length(pchar.combo) - 1
             && state_timer >= _active_end + atk.cancel_after
             && (!_P.combo_requires_hit || atk_connected);
         if (_can_chain && buf_attack > 0) {
@@ -371,20 +400,42 @@ function player_on_hit(_hit) {
 
     if (global.flow.state == FLOW.VICTORY) return HITRES.IGNORED; // a luta acabou
     if (global.player_states[state].invulnerable || invuln > 0) return HITRES.IGNORED;
-    if (state == PS.DODGE && state_timer >= _P.dodge.iframe_start && state_timer <= _P.dodge.iframe_end) return HITRES.IGNORED;
+    if (state == PS.DODGE && state_timer >= _P.dodge.iframe_start && state_timer <= _P.dodge.iframe_end) {
+        // esquiva perfeita: cada golpe so chega aqui uma vez
+        if (_run.stats.dodge_special > 0) {
+            _run.special = min(_P.special.meter_max, _run.special + _run.stats.dodge_special);
+            fx_number(x, y - z - body_h - 8, "ESQUIVA!", make_colour_rgb(45, 226, 230));
+        }
+        if (_run.stats.counter_mult > 0) counter_ready = true;
+        return HITRES.IGNORED;
+    }
     if (state == PS.SPECIAL && _P.special.invulnerable) return HITRES.IGNORED;
 
     // Bloqueio: reduz o dano de golpes vindos da frente; nao protege as costas.
     if (state == PS.BLOCK && !_hit.atk.unblockable) {
         var _from_front = (_hit.dir != facing);
         if (_from_front || !_P.block.front_only) {
-            _run.hp = max(1, _run.hp - _hit.damage * _run.stats.damage_taken_mult * _P.block.damage_mult); // bloqueio nunca mata
+            var _chip = min(_run.hp - 1, _hit.damage * _run.stats.damage_taken_mult * _P.block.damage_mult); // bloqueio nunca mata
+            _run.hp -= _chip;
+            _run.dmg_taken += _chip;
             vx = _hit.dir * _P.block.pushback;
+            // Muralha: devolve dano a quem bateu (golpes a distancia nao tem dono)
+            if (_run.stats.block_reflect > 0 && instance_exists(_hit.attacker) && _hit.attacker.team != team) {
+                combat_deliver(_hit.attacker, {
+                    atk: attack_get("reflect"),
+                    damage: _run.stats.block_reflect,
+                    dir: -_hit.dir,
+                    attacker: id
+                }, id);
+            }
             return HITRES.BLOCKED;
         }
     }
 
-    _run.hp = max(0, _run.hp - _hit.damage * _run.stats.damage_taken_mult);
+    var _dmg = min(_run.hp, _hit.damage * _run.stats.damage_taken_mult);
+    _run.hp -= _dmg;
+    _run.dmg_taken += _dmg;
+    _run.hits_taken += 1;
     _run.special = min(_P.special.meter_max, _run.special + _P.special.gain_on_hurt * _run.stats.special_gain_mult);
     hitbox_clear(id);
     player_release_grab(); // apanhar solta o inimigo segurado
@@ -430,24 +481,32 @@ function attack_anim_frame(_atk, _timer) {
 }
 
 function player_animate() {
+    var _S = pchar.sprites;
     switch (state) {
-        case PS.IDLE:       actor_anim(spr_player_idle, (anim_clock div 10) mod 4); break;
-        case PS.WALK:       actor_anim(spr_player_walk, (anim_clock div 6) mod 6); break;
-        case PS.JUMP_START: actor_anim(spr_player_land, 0); break;
-        case PS.AIR:        actor_anim(vz > 0 ? spr_player_jump : spr_player_fall, 0); break;
+        case PS.IDLE:       actor_anim(_S.idle, (anim_clock div 10) mod 4); break;
+        case PS.WALK:       actor_anim(_S.walk, (anim_clock div 6) mod 6); break;
+        case PS.JUMP_START: actor_anim(_S.land, 0); break;
+        case PS.AIR:        actor_anim(vz > 0 ? _S.jump : _S.fall, 0); break;
         case PS.AIR_ATTACK: actor_anim(atk.sprite, 0); break;
-        case PS.LAND:       actor_anim(spr_player_land, 0); break;
+        case PS.LAND:       actor_anim(_S.land, 0); break;
         case PS.ATTACK:     actor_anim(atk.sprite, attack_anim_frame(atk, state_timer)); break;
-        case PS.SPECIAL:    actor_anim(atk.sprite, (state_timer div 3) mod 4); break;
-        case PS.DODGE:      actor_anim(spr_player_dodge, 0); break;
-        case PS.BLOCK:      actor_anim(spr_player_block, 0); break;
-        case PS.HURT:       actor_anim(spr_player_hurt, 0); break;
-        case PS.KNOCKDOWN:  actor_anim(actor_on_ground() ? spr_player_knockdown : spr_player_hurt, 0); break;
-        case PS.GETUP:      actor_anim(spr_player_getup, 0); break;
-        case PS.DEAD:       actor_anim(spr_player_dead, 0); break;
-        // PLACEHOLDER: agarrao e arremesso reaproveitam frames de ataque
-        case PS.GRAB:       actor_anim(knee_timer > 0 ? spr_player_attack3 : spr_player_attack1, knee_timer > 0 ? 0 : 1); break;
-        case PS.THROW:      actor_anim(spr_player_attack2, 1); break;
+        case PS.SPECIAL:    actor_anim(atk.sprite, (state_timer div 3) mod sprite_get_number(atk.sprite)); break;
+        case PS.DODGE:      actor_anim(_S.dodge, 0); break;
+        case PS.BLOCK:      actor_anim(_S.block, 0); break;
+        case PS.HURT:       actor_anim(_S.hurt, 0); break;
+        case PS.KNOCKDOWN:  actor_anim(actor_on_ground() ? _S.knockdown : _S.hurt, 0); break;
+        case PS.GETUP:      actor_anim(_S.getup, 0); break;
+        case PS.DEAD:       actor_anim(_S.dead, 0); break;
+        // segurando: bracos estendidos; joelhada reaproveita a preparacao do chute
+        case PS.GRAB:
+            if (knee_timer > 0) actor_anim(_S.knee, 0);
+            else actor_anim(_S.grab, 0);
+            break;
+        // arremesso: os quadros do sprite tocam ao longo do estado
+        case PS.THROW:
+            var _n = sprite_get_number(_S.throw_spr);
+            actor_anim(_S.throw_spr, min(_n - 1, (state_timer * _n) div CFG.player.grab.throw_frames));
+            break;
     }
 }
 

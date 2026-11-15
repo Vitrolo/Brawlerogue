@@ -20,6 +20,42 @@ function config_init() {
             defeat_frames: 150,
             victory_frames: 270
         },
+        ui: {
+            splash_frames: 240     // duracao da tela de carregamento (ESPACO pula)
+        },
+        meta: {
+            // fichas (moeda permanente) ganhas ao fim de cada run
+            chips_per_kill: 0.5,
+            chips_per_section: 2,
+            chips_per_boss: 10,
+            chips_victory: 25
+        },
+        elite: {
+            chance: [0.06, 0.12, 0.18], // chance por inimigo, por bioma
+            hp_mult: 1.8,
+            damage_mult: 1.35,
+            scale_mult: 1.12,
+            coin_mult: 4
+        },
+        props: {
+            breakables_per_section: [1, 3], // minimo e maximo por trecho de combate
+            hazard_chance: 0.7,             // chance de um trecho ter um perigo do bioma
+            coin_drop: [3, 8],
+            food_chance: 0.25,
+            food_heal: 15,
+            kicked_speed: 5.5,
+            kicked_frames: 38,
+            toxic_interval: 36,             // frames entre danos da poca
+            car_cycle: 420,                 // frames entre passagens do carro
+            car_warn: 80,
+            car_speed: 8,
+            skylight_player_damage: 18
+        },
+        challenge: {
+            timer_frames: 2700,             // 45 s no desafio contra o tempo
+            reward_coins: 40,
+            reward_chips: 3
+        },
         run: {
             layers_per_biome: 4,       // salas visitadas por bioma (minimo 2: entrada e saida)
             branch_min: 2,             // opcoes por camada do meio
@@ -28,6 +64,8 @@ function config_init() {
             extra_path_chance: 0.5,    // chance de uma sala ganhar uma segunda saida
             special_kinds: [["reward", 4], ["rest", 3], ["shop", 2], ["event", 2]], // tipo e peso
             boss_stage: "boss_arena",
+            biome_bosses: ["boss_sewer", "boss_streets", "boss"], // chefe do fim de cada corredor
+            special_slots: 3,          // entradas especiais sorteadas por corredor (de 4 tipos)
             max_attempts: 5,
             door_spacing: 64,
             banner_frames: 150
@@ -149,6 +187,8 @@ function attack_define(_name, _fields) {
         unblockable: false,
         hitstop: 4,
         lunge: 0,          // avanco por frame durante o startup
+        rush: 0,           // avanco por frame enquanto a hitbox esta ativa (investidas)
+        guard_break: false, // passa pelo escudo do Escudeiro
         cancel_after: 2,   // frames de recuperacao antes de poder encadear o proximo golpe
         sprite: -1,        // sprite de 3 frames: preparacao, ativo, recuperacao
     };
@@ -169,20 +209,47 @@ function config_attacks_init() {
     attack_define("punch2", { startup: 5, active: 3, recovery: 12, damage: 7, reach: 28, knock_x: 1.4, lunge: 0.6, cancel_after: 1, sprite: spr_player_attack2 });
     attack_define("kick", { startup: 7, active: 4, recovery: 18, damage: 12, reach: 32, knock_x: 3.2, knock_z: 3.2, knockdown: true, hitstop: 7, lunge: 1.0, sprite: spr_player_attack3 });
     attack_define("air_kick", { startup: 3, active: 40, recovery: 0, damage: 9, reach: 26, knock_x: 2.6, knock_z: 2.8, knockdown: true, z_bottom: -34, z_top: 16, sprite: spr_player_air_attack });
-    attack_define("special_spin", { startup: 5, active: 10, recovery: 16, damage: 16, reach: 38, lane: 18, both_sides: true, knock_x: 3.6, knock_z: 3.6, knockdown: true, hitstop: 8, sprite: spr_player_special });
+    attack_define("special_spin", { startup: 5, active: 10, recovery: 16, damage: 16, reach: 38, lane: 18, both_sides: true, knock_x: 3.6, knock_z: 3.6, knockdown: true, hitstop: 8, guard_break: true, sprite: spr_player_special });
+
+    // Safira (segunda personagem): golpes curtos e rapidos, especial de investida
+    attack_define("s_jab1", { startup: 3, active: 2, recovery: 7, damage: 4, reach: 24, knock_x: 0.8, lunge: 0.5, cancel_after: 1, hitstop: 3, sprite: spr_p2_attack1 });
+    attack_define("s_jab2", { startup: 3, active: 2, recovery: 8, damage: 4, reach: 24, knock_x: 0.8, lunge: 0.5, cancel_after: 1, hitstop: 3, sprite: spr_p2_attack2 });
+    attack_define("s_jab3", { startup: 3, active: 3, recovery: 9, damage: 5, reach: 26, knock_x: 1.2, lunge: 0.6, cancel_after: 1, hitstop: 3, sprite: spr_p2_attack1 });
+    attack_define("s_kick", { startup: 5, active: 4, recovery: 15, damage: 10, reach: 30, knock_x: 3, knock_z: 3, knockdown: true, hitstop: 6, lunge: 1.2, sprite: spr_p2_attack3 });
+    attack_define("s_air", { startup: 3, active: 40, recovery: 0, damage: 8, reach: 26, knock_x: 2.4, knock_z: 2.6, knockdown: true, z_bottom: -34, z_top: 16, sprite: spr_p2_air_attack });
+    attack_define("s_rush", { startup: 4, active: 14, recovery: 14, damage: 14, reach: 30, lane: 14, knock_x: 3.2, knock_z: 3, knockdown: true, hitstop: 5, rush: 5.5, guard_break: true, sprite: spr_p2_air_attack });
+
+    // Golpes criados por modificadores
+    attack_define("dodge_strike", { startup: 0, active: 14, recovery: 0, damage: 6, offset_x: -4, reach: 20, lane: 10, knock_x: 1.6, hitstop: 2 });
+    attack_define("reflect", { damage: 0, knock_x: 1.2, hitstop: 2 });
 
     // Agarrao: joelhada no inimigo segurado e corpo arremessado que derruba outros
     attack_define("grab_knee", { damage: 5, knock_x: 0, hitstop: 4 });
-    attack_define("thrown_body", { startup: 0, active: 45, recovery: 0, damage: 10, reach: 14, lane: 10, z_bottom: -10, both_sides: true, knock_x: 2.5, knock_z: 2.8, knockdown: true, hitstop: 5 });
+    attack_define("thrown_body", { startup: 0, active: 45, recovery: 0, damage: 10, reach: 14, lane: 10, z_bottom: -10, both_sides: true, knock_x: 2.5, knock_z: 2.8, knockdown: true, hitstop: 5, guard_break: true });
 
     // Armas: um golpe unico que substitui o combo enquanto a arma durar
     attack_define("weapon_pipe", { startup: 6, active: 4, recovery: 14, damage: 14, reach: 42, knock_x: 2.4, hitstop: 6, lunge: 0.5, sprite: spr_player_attack1 });
-    attack_define("weapon_bat", { startup: 9, active: 4, recovery: 18, damage: 20, reach: 36, knock_x: 3.4, knock_z: 3.2, knockdown: true, hitstop: 8, lunge: 0.8, sprite: spr_player_attack2 });
+    attack_define("weapon_bat", { startup: 9, active: 4, recovery: 18, damage: 20, reach: 36, knock_x: 3.4, knock_z: 3.2, knockdown: true, hitstop: 8, lunge: 0.8, guard_break: true, sprite: spr_player_attack2 });
     CFG.weapons[$ "w_pipe"] = { name: "Cano", attack: "weapon_pipe", durability: 12, length: 20, colour: make_colour_rgb(170, 180, 190) };
     CFG.weapons[$ "w_bat"] = { name: "Taco", attack: "weapon_bat", durability: 8, length: 16, colour: make_colour_rgb(200, 150, 90) };
 
     attack_define("runner_jab", { startup: 3, active: 3, recovery: 10, damage: 5, reach: 20, lane: 8, knock_x: 1.2, lunge: 1.4, hitstop: 3, sprite: spr_runner_attack });
     attack_define("brute_smash", { startup: 6, active: 5, recovery: 22, damage: 14, reach: 30, lane: 10, knock_x: 3, knock_z: 3, knockdown: true, hitstop: 7, lunge: 0.6, sprite: spr_brute_attack });
+
+    // Inimigos novos: tiro (o projetil usa reach/lane/z como volume), escudo e explosao
+    attack_define("shooter_shot", { startup: 6, active: 1, recovery: 24, damage: 7, offset_x: -5, reach: 10, lane: 7, z_bottom: -12, z_top: 12, knock_x: 1.5, hitstop: 3, sprite: spr_shooter_attack });
+    attack_define("shield_bash", { startup: 5, active: 4, recovery: 16, damage: 9, reach: 24, lane: 8, knock_x: 2.4, lunge: 1.0, sprite: spr_shield_attack });
+    attack_define("bomber_blast", { startup: 2, active: 1, recovery: 0, damage: 16, reach: 36, lane: 20, z_top: 50, both_sides: true, knock_x: 3, knock_z: 3.4, knockdown: true, hitstop: 6, guard_break: true, sprite: spr_bomber_attack });
+
+    // Cenario: perigos e objetos chutados
+    attack_define("hazard_toxic", { damage: 4, knock_x: 0, hitstop: 0 });
+    attack_define("hazard_car", { damage: 16, reach: 24, lane: 9, z_top: 30, both_sides: true, knock_x: 3.5, knock_z: 3.4, knockdown: true, hitstop: 6, guard_break: true });
+    attack_define("hazard_skylight", { damage: 18, knock_x: 0, hitstop: 4, unblockable: true });
+    attack_define("prop_kicked", { damage: 10, reach: 12, lane: 9, z_top: 30, both_sides: true, knock_x: 2.6, knock_z: 2.8, knockdown: true, hitstop: 4, guard_break: true });
+
+    // Chefes dos dois primeiros biomas (mesmos padroes do chefe final, com outro peso)
+    attack_define("bsewer_swipe", { startup: 10, active: 5, recovery: 14, damage: 12, reach: 40, lane: 12, z_top: 60, knock_x: 2.8, lunge: 1.0, hitstop: 6, sprite: spr_bsewer_attack });
+    attack_define("bstreet_swipe", { startup: 6, active: 4, recovery: 10, damage: 9, reach: 38, lane: 12, z_top: 60, knock_x: 2.0, lunge: 1.6, hitstop: 5, sprite: spr_bstreet_attack });
 
     // Chefe (os avisos ficam na config do chefe)
     attack_define("boss_swipe", { startup: 8, active: 4, recovery: 12, damage: 12, reach: 44, lane: 12, z_top: 60, knock_x: 2.4, lunge: 1.2, hitstop: 6, sprite: spr_boss_attack });
@@ -304,10 +371,105 @@ function config_enemies_init() {
         }
     };
 
+    // Atirador: fica longe, alinha na profundidade e atira. Fragil de perto.
+    CFG.enemies[$ "shooter"] = {
+        name: "Atirador",
+        ai: "basic",
+        scale: 1,
+        grabbable: true,
+        hp_max: 16,
+        speed_x: 1.0,
+        speed_y: 0.8,
+        body_w: 8,
+        body_h: 40,
+        attack: "shooter_shot",
+        projectile: { speed: 3.4, z: 24, life: 110 },
+        attack_range: 150,    // distancia de tiro
+        lane_ok: 5,
+        circle_dist: 175,
+        spawn_frames: 30,
+        telegraph_frames: 36,
+        recover_frames: 50,
+        think_min: 40,
+        think_max: 110,
+        hurt_frames: 18,
+        knockdown_frames: 45,
+        getup_frames: 18,
+        dead_frames: 50,
+        sprites: {
+            idle: spr_shooter_idle, walk: spr_shooter_walk, telegraph: spr_shooter_telegraph, attack: spr_shooter_attack,
+            hurt: spr_shooter_hurt, knockdown: spr_shooter_knockdown, getup: spr_shooter_getup, dead: spr_shooter_dead
+        }
+    };
+
+    // Escudeiro: bloqueia golpes pela frente. Agarre, acerte por tras ou use
+    // golpes que quebram a guarda (especial, corpo arremessado, taco, explosao).
+    CFG.enemies[$ "shield"] = {
+        name: "Escudeiro",
+        ai: "basic",
+        scale: 1,
+        grabbable: true,
+        shield: true,
+        hp_max: 34,
+        speed_x: 0.7,
+        speed_y: 0.5,
+        body_w: 9,
+        body_h: 40,
+        attack: "shield_bash",
+        attack_range: 24,
+        lane_ok: 6,
+        circle_dist: 56,
+        spawn_frames: 30,
+        telegraph_frames: 30,
+        recover_frames: 46,
+        think_min: 35,
+        think_max: 100,
+        hurt_frames: 18,
+        knockdown_frames: 50,
+        getup_frames: 20,
+        dead_frames: 50,
+        sprites: {
+            idle: spr_shield_idle, walk: spr_shield_walk, telegraph: spr_shield_telegraph, attack: spr_shield_attack,
+            hurt: spr_shield_hurt, knockdown: spr_shield_knockdown, getup: spr_shield_getup, dead: spr_shield_dead
+        }
+    };
+
+    // Homem-bomba: corre ate o jogador, avisa e explode. Tambem explode ao morrer,
+    // e a explosao acerta outros inimigos.
+    CFG.enemies[$ "bomber"] = {
+        name: "Homem-bomba",
+        ai: "basic",
+        scale: 1,
+        grabbable: true,
+        explode: true,
+        hp_max: 14,
+        speed_x: 1.2,
+        speed_y: 0.85,
+        body_w: 9,
+        body_h: 40,
+        attack: "bomber_blast",
+        attack_range: 18,
+        lane_ok: 10,
+        circle_dist: 70,
+        spawn_frames: 30,
+        telegraph_frames: 44,
+        recover_frames: 10,
+        think_min: 20,
+        think_max: 70,
+        hurt_frames: 16,
+        knockdown_frames: 40,
+        getup_frames: 16,
+        dead_frames: 36,
+        sprites: {
+            idle: spr_bomber_idle, walk: spr_bomber_walk, telegraph: spr_bomber_telegraph, attack: spr_bomber_attack,
+            hurt: spr_bomber_hurt, knockdown: spr_bomber_knockdown, getup: spr_bomber_getup, dead: spr_bomber_dead
+        }
+    };
+
     // Chefe final: tres padroes com aviso e duas fases (ver scr_boss).
     // Listas de dois valores = [fase 1, fase 2].
     CFG.enemies[$ "boss"] = {
-        name: "CHEFE",
+        name: "O CHEFE",
         ai: "boss",
         grabbable: false,
         hp_max: 260,
@@ -321,6 +483,8 @@ function config_enemies_init() {
         intro_frames: 90,
         keep_dist: 60,         // distancia que tenta manter enquanto decide
         near_dist: 80,         // abaixo disso prefere o swipe
+        near_patterns: ["swipe", "swipe", "slam"], // sorteio do padrao com o jogador perto
+        far_patterns: ["dash", "slam", "dash"],    // e com o jogador longe
         think_frames: [55, 35],
         tele_mult: [1, 0.75],  // duracao dos avisos
         hurt_frames: 10,
@@ -344,4 +508,57 @@ function config_enemies_init() {
             dead: spr_boss_dead
         }
     };
+
+    // Chefe do esgoto: lento e pesado, vive do slam e chama um homem-bomba.
+    CFG.enemies[$ "boss_sewer"] = struct_merge(CFG.enemies[$ "boss"], {
+        name: "REI DO ESGOTO",
+        hp_max: 150,
+        speed_x: 0.75,
+        speed_y: 0.55,
+        body_w: 14,
+        body_h: 56,
+        scale: 1.3,
+        near_patterns: ["swipe", "slam", "slam"],
+        far_patterns: ["slam", "dash", "slam"],
+        summon: ["thug", "bomber"],
+        swipe: { attack: "bsewer_swipe", telegraph: 36, hits: [1, 2], recover: 60 },
+        dash: { attack: "boss_dash", telegraph: 50, speed: 4, repeats: [1, 1], recover: 80 },
+        slam: { attack: "boss_slam", air_frames: 54, land_frames: 14, repeats: [1, 3], recover: 60 },
+        sprites: {
+            idle: spr_bsewer_idle, walk: spr_bsewer_walk, telegraph: spr_bsewer_telegraph, attack: spr_bsewer_attack,
+            dash: spr_bsewer_dash, jump: spr_bsewer_jump, land: spr_bsewer_land, hurt: spr_bsewer_hurt, dead: spr_bsewer_dead
+        }
+    });
+
+    // Chefe das ruas: rapida, emenda investidas e chama corredores.
+    CFG.enemies[$ "boss_streets"] = struct_merge(CFG.enemies[$ "boss"], {
+        name: "RAINHA DO NEON",
+        hp_max: 190,
+        speed_x: 1.4,
+        speed_y: 1.0,
+        body_w: 11,
+        body_h: 52,
+        scale: 1.35,
+        think_frames: [45, 28],
+        near_patterns: ["swipe", "swipe", "dash"],
+        far_patterns: ["dash", "dash", "slam"],
+        summon: ["runner", "runner"],
+        swipe: { attack: "bstreet_swipe", telegraph: 24, hits: [3, 4], recover: 46 },
+        dash: { attack: "boss_dash", telegraph: 34, speed: 6.5, repeats: [2, 3], recover: 70 },
+        slam: { attack: "boss_slam", air_frames: 44, land_frames: 12, repeats: [1, 1], recover: 56 },
+        sprites: {
+            idle: spr_bstreet_idle, walk: spr_bstreet_walk, telegraph: spr_bstreet_telegraph, attack: spr_bstreet_attack,
+            dash: spr_bstreet_dash, jump: spr_bstreet_jump, land: spr_bstreet_land, hurt: spr_bstreet_hurt, dead: spr_bstreet_dead
+        }
+    });
+}
+
+/// Copia rasa de _base com os campos de _over por cima.
+function struct_merge(_base, _over) {
+    var _out = {};
+    var _names = variable_struct_get_names(_base);
+    for (var _i = 0; _i < array_length(_names); _i++) _out[$ _names[_i]] = _base[$ _names[_i]];
+    _names = variable_struct_get_names(_over);
+    for (var _i = 0; _i < array_length(_names); _i++) _out[$ _names[_i]] = _over[$ _names[_i]];
+    return _out;
 }
