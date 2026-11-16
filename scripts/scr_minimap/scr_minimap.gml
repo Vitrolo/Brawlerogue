@@ -6,7 +6,9 @@
 /// os corredores da run, do inicio ao chefe.
 ///
 /// Tudo vem de global.run.maps: trechos de combate (pending/active/cleared), as
-/// entradas das salas especiais e o chefe no fim. Nada aqui altera o jogo.
+/// entradas das salas especiais e o chefe no fim. Trechos ainda nao descobertos
+/// (section.discovered) aparecem como "???" e escondem o que tem dentro.
+/// Nada aqui altera o jogo.
 
 #macro MINIMAP_W 232
 #macro MINIMAP_H 60
@@ -70,6 +72,25 @@ function minimap_draw_corridor(_map, _x, _y, _w, _h, _wx0, _wx1, _labels, _here)
         _sx0 = max(_sx0, _x);
         _sx1 = min(_sx1, _x + _w);
 
+        // trecho ainda nao explorado: so "???", sem tipo, inimigos ou chefe
+        if (!run_section_discovered(_s)) {
+            draw_set_colour(make_colour_rgb(40, 44, 68));
+            draw_rectangle(_sx0, _line_y - 3, _sx1, _line_y + 3, false);
+            draw_set_colour(make_colour_rgb(70, 76, 108));
+            for (var _d = _sx0; _d < _sx1; _d += 8) draw_rectangle(_d, _line_y - 1, min(_d + 3, _sx1), _line_y + 1, false);
+            if (_sx1 - _sx0 > string_width("???") + 4) {
+                draw_set_halign(fa_center);
+                hud_text((_sx0 + _sx1) * 0.5, _line_y - 22, "???", make_colour_rgb(110, 118, 160));
+            }
+            continue;
+        }
+        // trecho inicial: so chao, nada para fazer
+        if (_s.kind == "start") {
+            draw_set_colour(make_colour_rgb(72, 80, 112));
+            draw_rectangle(_sx0, _line_y - 2, _sx1, _line_y + 2, false);
+            continue;
+        }
+
         var _boss = (_s.kind == "boss");
         var _done = _boss ? _map.completed : (_s.state == "cleared");
         var _base = room_kind_colour(_boss ? "boss" : "combat");
@@ -104,6 +125,7 @@ function minimap_draw_corridor(_map, _x, _y, _w, _h, _wx0, _wx1, _labels, _here)
         var _sp = _map.specials[_i];
         var _dx = round(_x + (_sp.x - _wx0) * _k);
         if (_dx < _x - 6 || _dx > _x + _w + 6) continue;
+        if (!run_map_x_discovered(_map, _sp.x)) continue; // nao revela o que vem adiante
         var _rooms = global.run.special_rooms;
         var _used = variable_struct_exists(_rooms, _sp.target_sid) && _rooms[$ _sp.target_sid].used;
         var _col = _used ? make_colour_rgb(96, 102, 136) : room_kind_colour(_sp.room_kind);

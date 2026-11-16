@@ -179,3 +179,114 @@ function stage_draw_placeholder() {
         _row++;
     }
 }
+
+// ------------------------------------------------- indicadores das entradas
+
+/// Altura da porta pintada no cenario acima da linha do chao, em pixels do mundo
+/// (altura da arte menos o quanto ela afunda no chao). Mesmos numeros de
+/// tools/import_v2_art.py: porta sem o cano do esgoto (77 - 7), ruas (65 - 2),
+/// telhados (54 - 2).
+function stage_entrance_height(_biome) {
+    switch (_biome) {
+        case "sewer":    return 70;
+        case "streets":  return 63;
+        case "rooftops": return 52;
+    }
+    return 64;
+}
+
+/// Desenha, no Draw GUI, um icone pulsante com seta acima de cada entrada
+/// especial do corredor. E so desenho: nao tem colisao nem mexe na porta.
+/// Fica no HUD (nao no cenario), entao nunca sai espelhado.
+function stage_entrance_indicators_draw() {
+    var _s = global.stage;
+    if (is_undefined(_s) || _s.kind != "main_map") return;
+    var _M = CFG.entrance_marker;
+    var _gw = CFG.view.gui_w;
+    var _kx = _gw / VIEW_W;
+    var _ky = CFG.view.gui_h / VIEW_H;
+    var _camx = camera_get_view_x(view_camera[0]);
+    var _camy = camera_get_view_y(view_camera[0]);
+    var _tip_y = (_s.floor_top - 8 - stage_entrance_height(_s.biome) - _M.gap - _camy) * _ky;
+    var _open = stage_exits_open();
+    var _rooms = global.run.special_rooms;
+
+    with (obj_door) {
+        if (kind != "special") continue;
+        var _gx = (x - _camx) * _kx;
+        if (_gx < -40 || _gx > _gw + 40) continue;
+        var _used = variable_struct_exists(_rooms, target_sid) && _rooms[$ target_sid].used;
+        var _col = _used ? make_colour_rgb(110, 116, 150) : room_kind_colour(room_kind);
+        // pulsacao suave; uma fase por porta para nao pulsarem em sincronia
+        var _ph = current_time * _M.pulse_speed + x * 0.01;
+        var _active = !_used && _open;
+        var _scale = _active ? 1 + _M.pulse_scale * sin(_ph) : 1;
+        var _bob = _active ? _M.bob * sin(_ph) : 0;
+        var _alpha = _open ? (_active ? 0.85 + 0.15 * sin(_ph) : 0.7) : 0.45;
+        stage_entrance_indicator(_gx, _tip_y + _bob, room_kind, _col, _scale, _alpha);
+    }
+    draw_set_alpha(1);
+    draw_set_colour(c_white);
+}
+
+/// Seta para baixo com a ponta em (_x, _tip_y) e o icone do tipo acima dela.
+function stage_entrance_indicator(_x, _tip_y, _kind, _col, _scale, _alpha) {
+    var _M = CFG.entrance_marker;
+    var _r = _M.radius * _scale;
+    var _a = _M.arrow * _scale;
+    var _cy = _tip_y - _a - _r - 2;
+    var _dark = make_colour_rgb(16, 18, 34);
+    draw_set_alpha(_alpha);
+
+    // seta
+    draw_set_colour(c_black);
+    draw_triangle(_x - _a - 2, _tip_y - _a - 2, _x + _a + 2, _tip_y - _a - 2, _x, _tip_y + 2, false);
+    draw_set_colour(_col);
+    draw_triangle(_x - _a, _tip_y - _a - 1, _x + _a, _tip_y - _a - 1, _x, _tip_y, false);
+
+    // medalha
+    draw_set_colour(c_black);
+    draw_circle(_x, _cy, _r + 2, false);
+    draw_set_colour(_col);
+    draw_circle(_x, _cy, _r, false);
+    draw_set_colour(merge_colour(_col, c_white, 0.45));
+    draw_circle(_x, _cy, _r, true);
+
+    // icone do tipo (formas simples, em tom escuro sobre a cor da categoria)
+    var _u = _r / 12; // unidade: o desenho foi pensado para raio 12
+    draw_set_colour(_dark);
+    switch (_kind) {
+        case "reward": // bau
+            draw_rectangle(_x - 7 * _u, _cy - 1 * _u, _x + 7 * _u, _cy + 6 * _u, false);
+            draw_rectangle(_x - 7 * _u, _cy - 6 * _u, _x + 7 * _u, _cy - 3 * _u, false);
+            draw_set_colour(_col);
+            draw_rectangle(_x - 1 * _u, _cy - 3 * _u, _x + 1 * _u, _cy + 1 * _u, false);
+            break;
+        case "shop": // moeda com cifrao
+            draw_circle(_x, _cy, 7 * _u, false);
+            draw_set_colour(_col);
+            draw_set_halign(fa_center);
+            draw_set_valign(fa_middle);
+            draw_text_transformed(_x, _cy, "$", _u, _u, 0);
+            draw_set_valign(fa_top);
+            draw_set_halign(fa_left);
+            break;
+        case "challenge": // espadas cruzadas
+        case "event":
+            draw_line_width(_x - 6 * _u, _cy - 6 * _u, _x + 6 * _u, _cy + 6 * _u, 3 * _u);
+            draw_line_width(_x + 6 * _u, _cy - 6 * _u, _x - 6 * _u, _cy + 6 * _u, 3 * _u);
+            draw_line_width(_x - 7 * _u, _cy + 2 * _u, _x - 2 * _u, _cy + 7 * _u, 2 * _u);
+            draw_line_width(_x + 7 * _u, _cy + 2 * _u, _x + 2 * _u, _cy + 7 * _u, 2 * _u);
+            break;
+        case "rest": // lua (crescente)
+            draw_circle(_x - 1 * _u, _cy, 7 * _u, false);
+            draw_set_colour(_col);
+            draw_circle(_x + 2 * _u, _cy - 2 * _u, 6 * _u, false);
+            break;
+        default:
+            draw_circle(_x, _cy, 4 * _u, false);
+            break;
+    }
+    draw_set_alpha(1);
+    draw_set_colour(c_white);
+}

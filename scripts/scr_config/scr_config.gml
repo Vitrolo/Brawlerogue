@@ -38,6 +38,8 @@ function config_init() {
         },
         props: {
             breakables_per_section: [1, 3], // minimo e maximo por trecho de combate
+            entrance_clear_x: 44,           // objetos a menos disto de uma entrada...
+            entrance_clear_depth: 44,       // ...vao para longe da parede (y >= chao + isto)
             hazard_chance: 0.7,             // chance de um trecho ter um perigo do bioma
             coin_drop: [3, 8],
             food_chance: 0.25,
@@ -64,10 +66,30 @@ function config_init() {
             special_kinds: [["reward", 4], ["rest", 3], ["shop", 2], ["event", 2]], // tipo e peso
             boss_stage: "boss_arena",
             biome_bosses: ["boss_sewer", "boss_streets", "boss"], // chefe do fim de cada corredor
-            special_slots: 3,          // entradas especiais sorteadas por corredor (de 4 tipos)
+            special_slots: 3,          // (rota antiga) entradas especiais por corredor
+            // Corredor de cada bioma: inicio vazio + trechos de meio + saida + chefe.
+            sections_per_biome: 10,    // total de trechos, contando inicio e arena do chefe
+            start_width: 640,          // largura do trecho inicial (sem conteudo)
+            // Entradas especiais: loja, tesouro e desafio sempre; descanso com chance.
+            special_required: ["shop", "reward", "challenge"],
+            rest_chance: 0.5,
+            special_edge_margin: 320,  // distancia minima do fim do inicio e do comeco da arena
+            special_min_gap: 900,      // distancia minima entre duas entradas
+            special_place_attempts: 8, // ordens de tiles tentadas antes de relaxar a distancia
+            boss_exit_walkout: 56,     // depois do chefe, quanto o jogador anda alem da borda direita
+            boss_exit_trigger: 36,     // passar width + isto leva ao proximo bioma (ou a vitoria)
             max_attempts: 5,
             door_spacing: 64,
             banner_frames: 150
+        },
+        // Indicador acima das entradas especiais do corredor (desenhado no HUD).
+        entrance_marker: {
+            gap: 6,            // espaco entre o topo da porta e a ponta da seta (pixels do mundo)
+            radius: 12,        // raio do icone (pixels da interface)
+            arrow: 7,          // tamanho da seta
+            pulse_speed: 0.004,// velocidade da pulsacao (radianos por ms)
+            pulse_scale: 0.08, // variacao de escala
+            bob: 3             // deslocamento vertical da pulsacao (pixels da interface)
         },
         feedback: {
             flash_frames: 5,
@@ -144,7 +166,18 @@ function config_init() {
         encounter: {
             wave_delay: 45,     // pausa entre ondas
             max_wave_size: 5,   // inimigos por onda (excedente da sala e ignorado)
-            go_frames: 240      // tempo em que o "GO" pisca grande
+            // Cada inimigo comum das ondas e dos desafios surge esta quantidade de
+            // vezes (chefes nunca). Com 2, uma onda de ate 5 entradas traz ate 10.
+            enemy_count_mult: 2,
+            copy_offset_x: 20,  // afastamento horizontal entre as copias de um inimigo
+            copy_offset_y: 16,  // afastamento em profundidade entre as copias
+            go_frames: 240,     // tempo em que o "GO" pisca grande
+            // Entrada dos inimigos nos trechos do corredor: surgem fora da camera
+            // e caminham ate a posicao da onda antes de agir.
+            offscreen_margin: 28,   // distancia alem da borda da camera
+            offscreen_spacing: 22,  // espaco extra entre inimigos do mesmo lado
+            enter_inset: 36,        // ponto de chegada fica ao menos isto dentro da tela
+            enter_timeout: 300      // frames: se nao chegar, comeca a agir mesmo assim
         },
         rewards: {
             rest_heal_pct: 0.3,    // descanso cura esta fracao da vida maxima

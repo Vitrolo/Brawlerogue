@@ -2,7 +2,10 @@
 /// estes modulos; nunca inventa geometria.
 ///
 /// Para criar uma sala nova: acrescente uma linha room_combat/room_special no bioma.
-/// Papeis (role): "start" = primeira sala do bioma, "exit" = ultima, "mid" = meio.
+/// Papeis (role): "exit" = ultima sala de combate do bioma, "mid" = meio.
+/// O trecho inicial do corredor nao usa modulo: e um espaco vazio gerado em
+/// run_maps_build (CFG.run.start_width). Por isso as antigas salas "start"
+/// passaram a ser salas de meio.
 
 // Room do GameMaker usado como casca por todas as salas da run. A largura real vem
 // da definicao da sala (a camera nao depende do tamanho do room).
@@ -52,8 +55,8 @@ function rooms_init() {
         }
     ];
 
-    // ------------------------------------------------------------ ESGOTO (11)
-    room_combat("sw_entry", "sewer", "Boca de lobo", "start", 640, [
+    // ------------------------------------------------------------ ESGOTO (14)
+    room_combat("sw_entry", "sewer", "Boca de lobo", "mid", 640, [
         [[440, 205], [540, 240]],
         [[150, 225], [580, 200]]
     ]);
@@ -78,14 +81,27 @@ function rooms_init() {
         [[460, 200], [550, 240], [640, 215, "runner"]],
         [[150, 215], [600, 195], [680, 245, "runner"]]
     ]);
+    room_combat("sw_sluice", "sewer", "Comporta", "mid", 720, [
+        [[450, 210], [530, 245], [610, 200]],
+        [[160, 225], [640, 235, "runner"]]
+    ]);
+    room_combat("sw_overflow", "sewer", "Galeria de transbordo", "mid", 800, [
+        [[460, 200], [580, 240, "runner"]],
+        [[170, 215], [650, 195], [720, 245]],
+        [[420, 230], [700, 210, "runner"]]
+    ]);
+    room_combat("sw_junction", "sewer", "Cruzamento de tuneis", "mid", 640, [
+        [[430, 205], [520, 240], [590, 215]],
+        [[150, 200, "runner"], [580, 230]]
+    ]);
     room_special("sw_rest", "sewer", "Sala de manutencao", "rest");
     room_special("sw_cache", "sewer", "Deposito esquecido", "reward");
     room_special("sw_cache2", "sewer", "Nicho seco", "reward");
     room_special("sw_shop", "sewer", "Barraca do catador", "shop");
     room_special("sw_event", "sewer", "Valvula emperrada", "event");
 
-    // -------------------------------------------------------------- RUAS (11)
-    room_combat("st_entry", "streets", "Beco da saida", "start", 640, [
+    // -------------------------------------------------------------- RUAS (14)
+    room_combat("st_entry", "streets", "Beco da saida", "mid", 640, [
         [[430, 205], [520, 240], [600, 215, "runner"]],
         [[150, 225], [590, 200]]
     ]);
@@ -110,14 +126,27 @@ function rooms_init() {
         [[450, 200, "brute"], [540, 240], [630, 210], [690, 250, "runner"]],
         [[150, 220], [600, 195], [670, 235, "runner"]]
     ]);
+    room_combat("st_crossing", "streets", "Faixa de pedestres", "mid", 720, [
+        [[460, 200], [550, 240, "runner"], [640, 215]],
+        [[150, 225, "brute"], [620, 195], [680, 245]]
+    ]);
+    room_combat("st_backlot", "streets", "Patio dos fundos", "mid", 640, [
+        [[420, 205], [510, 245], [590, 200, "runner"]],
+        [[160, 220], [570, 235, "brute"]]
+    ]);
+    room_combat("st_subway", "streets", "Entrada do metro", "mid", 800, [
+        [[450, 195], [560, 235, "runner"], [690, 215]],
+        [[160, 205, "brute"], [720, 240], [760, 200, "runner"]],
+        [[420, 250], [700, 220]]
+    ]);
     room_special("st_rest", "streets", "Lanchonete 24h", "rest");
     room_special("st_cache", "streets", "Carga abandonada", "reward");
     room_special("st_cache2", "streets", "Vitrine quebrada", "reward");
     room_special("st_shop", "streets", "Banca de rua", "shop");
     room_special("st_event", "streets", "Telefone tocando", "event");
 
-    // -------------------------------------------------- TOPO DOS PREDIOS (10)
-    room_combat("rf_entry", "rooftops", "Parapeito", "start", 640, [
+    // -------------------------------------------------- TOPO DOS PREDIOS (13)
+    room_combat("rf_entry", "rooftops", "Parapeito", "mid", 640, [
         [[430, 205, "brute"], [520, 240], [600, 215]],
         [[150, 225], [560, 200, "runner"], [610, 245]]
     ]);
@@ -141,6 +170,19 @@ function rooms_init() {
     room_combat("rf_exit", "rooftops", "Heliponto", "exit", 800, [
         [[450, 200, "brute"], [540, 240], [630, 210], [720, 250, "runner"]],
         [[150, 220, "brute"], [600, 195], [670, 235], [760, 215, "runner"]]
+    ]);
+    room_combat("rf_greenhouse", "rooftops", "Estufa abandonada", "mid", 720, [
+        [[460, 205, "brute"], [550, 240], [640, 210, "runner"]],
+        [[150, 220], [600, 195, "brute"], [680, 245]]
+    ]);
+    room_combat("rf_scaffold", "rooftops", "Andaime", "mid", 640, [
+        [[420, 200], [500, 245, "runner"], [590, 220, "brute"]],
+        [[160, 230, "runner"], [570, 205], [610, 250]]
+    ]);
+    room_combat("rf_crane", "rooftops", "Guindaste", "mid", 800, [
+        [[450, 200, "brute"], [560, 240], [680, 210, "runner"]],
+        [[160, 215], [700, 195, "brute"], [750, 240]],
+        [[420, 250, "runner"], [720, 220, "brute"]]
     ]);
     room_special("rf_rest", "rooftops", "Abrigo do zelador", "rest");
     room_special("rf_cache", "rooftops", "Caixa de ferramentas", "reward");

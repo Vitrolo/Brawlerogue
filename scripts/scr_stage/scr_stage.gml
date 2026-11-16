@@ -76,7 +76,8 @@ function stage_build() {
         section_index: -1,
         title: _def.name,
         subtitle: "",
-        banner_timer: 0
+        banner_timer: 0,
+        leaving: false        // ja saindo pela direita da arena do chefe
     };
 
     // A camada Background das salas tem depth 100 e e opaca; 99 desenha o
@@ -235,13 +236,78 @@ function encounter_spawn_wave(_index) {
         _wave = global.stage.encounter.waves[_index];
     }
     var _n = min(array_length(_wave), CFG.encounter.max_wave_size);
+    var _offscreen = global.stage.kind == "main_map"
+        && global.run.maps[global.stage_rt.map_index].sections[global.stage_rt.section_index].kind == "combat";
+    var _side_count = [0, 0]; // inimigos ja colocados a esquerda e a direita
+    var _E = CFG.encounter;
     for (var _i = 0; _i < _n; _i++) {
         var _e = _wave[_i];
-        instance_create_depth(_e.x, _e.y, 0, obj_enemy, {
-            enemy_type: _e.type,
-            elite: variable_struct_exists(_e, "elite") && _e.elite
-        });
+        // inimigos comuns surgem enemy_count_mult vezes; o chefe so uma
+        var _copies = (CFG.enemies[$ _e.type].ai == "boss") ? 1 : max(1, _E.enemy_count_mult);
+        for (var _c = 0; _c < _copies; _c++) {
+            var _vars = {
+                enemy_type: _e.type,
+                elite: variable_struct_exists(_e, "elite") && _e.elite
+            };
+            // copias alternam acima e abaixo da posicao original, sem sair do chao
+            var _dir = (_c mod 2 == 1) ? 1 : -1;
+            var _step = (_c + 1) div 2;
+            var _sy = clamp(_e.y + _dir * _step * _E.copy_offset_y, global.stage.floor_top, global.stage.floor_bottom);
+            var _sx = _e.x + _dir * _step * _E.copy_offset_x;
+            if (_offscreen) {
+                // Mesma onda (tipo, elite, profundidade); so a entrada muda:
+                // nasce fora da camera e caminha ate a posicao da onda.
+                var _spawn = encounter_offscreen_spawn(_e, _side_count);
+                _side_count[_spawn.side] += 1;
+                _sx = _spawn.x;
+                _vars.entering = true;
+                _vars.enter_x = clamp(_spawn.enter_x + _dir * _step * _E.copy_offset_x,
+                    global.stage_rt.lock_x1 + _E.enter_inset, global.stage_rt.lock_x2 - _E.enter_inset);
+            }
+            instance_create_depth(_sx, _sy, 0, obj_enemy, _vars);
+        }
     }
+}
+
+/// Ponto de entrada de um inimigo de onda no corredor. O lado e o mesmo em que a
+/// onda o colocou em relacao ao jogador (ondas desenhadas a mao continuam vindo
+/// do lado previsto); se esse lado sair dos limites do trecho, usa o outro.
+/// Inimigos do mesmo lado ficam enfileirados para nao nascerem sobrepostos.
+/// _side_count: [esquerda, direita] ja ocupados (quem chama soma o lado devolvido).
+function encounter_offscreen_spawn(_e, _side_count) {
+    var _E = CFG.encounter;
+    var _rt = global.stage_rt;
+    var _section = global.run.maps[_rt.map_index].sections[_rt.section_index];
+    // a camera ja esta presa na arena (cam_lock antes da onda): usa o destino dela
+    var _cam_l = cam_target_x();
+    var _cam_r = _cam_l + VIEW_W;
+    var _p = instance_find(obj_player, 0);
+    var _px = (_p != noone) ? _p.x : (_cam_l + _cam_r) * 0.5;
+    var _lo = _section.x1 - _E.offscreen_margin;
+    var _hi = _section.x2 + _E.offscreen_margin;
+
+    var _pref = (_e.x < _px) ? 0 : 1;
+    var _side = _pref;
+    var _x = 0;
+    for (var _try = 0; _try < 2; _try++) {
+        var _s = (_try == 0) ? _pref : 1 - _pref;
+        var _off = _E.offscreen_margin + _side_count[_s] * _E.offscreen_spacing;
+        var _cand = (_s == 0) ? _cam_l - _off : _cam_r + _off;
+        if (_try == 0) {
+            _side = _s;
+            _x = _cand;
+        }
+        if (_cand >= _lo && _cand <= _hi) {
+            _side = _s;
+            _x = _cand;
+            break;
+        }
+    }
+
+    // chega ate a posicao da onda, mas sempre dentro da tela e da arena
+    var _enter = clamp(_e.x, _cam_l + _E.enter_inset, _cam_r - _E.enter_inset);
+    _enter = clamp(_enter, _rt.lock_x1 + _E.enter_inset, _rt.lock_x2 - _E.enter_inset);
+    return { x: _x, enter_x: _enter, side: _side };
 }
 
 /// Chamado todo frame pelo obj_game.
@@ -298,6 +364,17 @@ function encounter_update_map() {
     var _rt = global.stage_rt;
     if (_rt.go_timer > 0) _rt.go_timer--;
 
+    // exploracao e saida do bioma (nao interferem nos encontros abaixo)
+    var _pl = instance_find(obj_player, 0);
+    if (_pl != noone) {
+        run_map_update_discovery(_rt.map_index, _pl.x);
+        if (!_rt.leaving && run_map_exit_open() && _pl.x >= global.stage.width + CFG.run.boss_exit_trigger) {
+            _rt.leaving = true;
+            run_map_leave();
+            return;
+        }
+    }
+
     if (!_rt.lock_active) {
         var _map = global.run.maps[_rt.map_index];
         var _player = instance_find(obj_player, 0);
@@ -331,11 +408,10 @@ function encounter_update_map() {
             _rt.go_timer = CFG.encounter.go_frames;
             run_map_mark_section(_rt.map_index, _rt.section_index, "cleared", _rt.enc_wave);
             global.run.sections_cleared += 1;
-            if (_section.kind == "boss") {
-                run_map_boss_cleared();
-            } else {
-                run_checkpoint(); // grava o progresso no slot
-            }
+            // o chefe nao leva mais direto ao proximo bioma: a saida a direita
+            // fica liberada e o jogador precisa atravessa-la (run_map_leave)
+            if (_section.kind == "boss") run_map_boss_cleared();
+            run_checkpoint(); // grava o progresso no slot
         }
     } else if (_rt.enc_state == ENC.BETWEEN) {
         _rt.enc_timer--;
@@ -356,5 +432,8 @@ function stage_x1() {
 
 function stage_x2() {
     var _rt = global.stage_rt;
-    return (_rt.lock_active ? _rt.lock_x2 : global.stage.width) - CFG.stage.edge_margin;
+    if (_rt.lock_active) return _rt.lock_x2 - CFG.stage.edge_margin;
+    // chefe derrotado: o jogador pode sair da tela pela direita
+    if (run_map_exit_open()) return global.stage.width + CFG.run.boss_exit_walkout;
+    return global.stage.width - CFG.stage.edge_margin;
 }

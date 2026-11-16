@@ -44,6 +44,12 @@ function enemy_create() {
     exploded = false;
     dmg_out = 1;
 
+    // Entrada de fora da tela (encounter_offscreen_spawn): caminha ate enter_x
+    // durante ES.SPAWN e so entao comeca a agir.
+    if (!variable_instance_exists(id, "entering")) entering = false;
+    if (!variable_instance_exists(id, "enter_x")) enter_x = x;
+    if (entering) facing = (enter_x >= x) ? 1 : -1;
+
     // Elite: mais vida, mais dano e dourado; vale mais moedas.
     if (!variable_instance_exists(id, "elite")) elite = false;
     if (elite && cfg.ai != "boss") {
@@ -108,8 +114,20 @@ function enemy_step() {
     var _p = instance_find(obj_player, 0);
     var _p_ok = (_p != noone) && player_is_targetable(_p);
 
+    if (entering && state != ES.SPAWN) entering = false; // atingido no caminho
+
     switch (state) {
         case ES.SPAWN:
+            if (entering) {
+                enemy_move_towards(enter_x, y);
+                if (vx != 0) facing = sign(vx);
+                if (abs(enter_x - x) <= 1 || state_timer >= CFG.encounter.enter_timeout) {
+                    entering = false;
+                    vx = 0;
+                    actor_set_state(ES.MOVE);
+                }
+                break;
+            }
             vx = 0;
             vy = 0;
             if (state_timer >= cfg.spawn_frames) actor_set_state(ES.MOVE);
@@ -339,6 +357,9 @@ function enemy_animate() {
     var _s = cfg.sprites;
     switch (state) {
         case ES.SPAWN:
+            if (entering) actor_anim(_s.walk, (anim_clock div 7) mod 6);
+            else actor_anim(_s.idle, (anim_clock div 24) mod 2);
+            break;
         case ES.RECOVER:
             actor_anim(_s.idle, (anim_clock div 24) mod 2);
             break;
@@ -367,7 +388,7 @@ function enemy_draw() {
     // morto pisca antes de sumir
     if (state == ES.DEAD && (state_timer div 4) mod 2 == 1) return;
     // recem-chegado pisca enquanto ainda nao age
-    if (state == ES.SPAWN && (state_timer div 3) mod 2 == 1) return;
+    if (state == ES.SPAWN && !entering && (state_timer div 3) mod 2 == 1) return;
 
     // homem-bomba: pisca vermelho no aviso e depois de cair
     var _base_tint = tint;

@@ -20,7 +20,9 @@ function prop_is_breakable(_kind) {
 }
 
 /// Sorteia os objetos de um trecho de combate. Retorna a lista de { kind, x, y, alive }.
-function props_roll_section(_biome, _x1, _x2) {
+/// _avoid_x: posicoes das entradas especiais; um objeto sorteado na frente de uma
+/// delas e empurrado para a parte de baixo do chao, sem bloquear a porta.
+function props_roll_section(_biome, _x1, _x2, _avoid_x = []) {
     var _P = CFG.props;
     var _out = [];
     var _ft = 178;
@@ -37,6 +39,7 @@ function props_roll_section(_biome, _x1, _x2) {
             y: irandom_range(_ft + 6, _fb - 6),
             alive: true
         });
+        props_clear_entrances(_out[array_length(_out) - 1], _avoid_x, _ft, _fb - 6);
     }
 
     if (random(1) < _P.hazard_chance) {
@@ -49,8 +52,20 @@ function props_roll_section(_biome, _x1, _x2) {
             y: irandom_range(_ft + 24, _fb - 20),
             alive: true
         });
+        props_clear_entrances(_out[array_length(_out) - 1], _avoid_x, _ft, _fb - 20);
     }
     return _out;
+}
+
+/// Afasta um objeto da frente de uma entrada (so mexe na profundidade).
+function props_clear_entrances(_prop, _avoid_x, _floor_top, _y_max) {
+    var _P = CFG.props;
+    for (var _i = 0; _i < array_length(_avoid_x); _i++) {
+        if (abs(_prop.x - _avoid_x[_i]) < _P.entrance_clear_x) {
+            _prop.y = max(_prop.y, min(_y_max, _floor_top + _P.entrance_clear_depth));
+            return;
+        }
+    }
 }
 
 // ------------------------------------------------------------------ obj_prop

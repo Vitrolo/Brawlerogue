@@ -53,7 +53,12 @@ function challenge_wave() {
 
 function challenge_start(_rule, _seed) {
     var _s = global.stage;
-    var _types = challenge_wave();
+    // cada inimigo do desafio surge enemy_count_mult vezes (como nas ondas)
+    var _base = challenge_wave();
+    var _types = [];
+    for (var _i = 0; _i < array_length(_base); _i++) {
+        for (var _c = 0; _c < max(1, CFG.encounter.enemy_count_mult); _c++) array_push(_types, _base[_i]);
+    }
     for (var _i = 0; _i < array_length(_types); _i++) {
         // entram pelos dois lados, espalhados na profundidade
         var _left = (_i mod 2 == 0);

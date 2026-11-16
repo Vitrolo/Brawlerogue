@@ -160,6 +160,9 @@ function hud_draw() {
     draw_set_halign(fa_left);
     draw_set_valign(fa_top);
 
+    // icones pulsantes acima das entradas especiais do corredor
+    stage_entrance_indicators_draw();
+
     // vida
     hud_bar(18, 18, 260, 16, _run.hp / _run.hp_max, make_colour_rgb(255, 60, 90));
     hud_text(24, 18, "HP " + string(ceil(_run.hp)) + "/" + string(_run.hp_max));
@@ -214,6 +217,7 @@ function hud_draw() {
     hud_text(_gw - 18, 16, _rt.title);
     if (_rt.subtitle != "") hud_text(_gw - 18, 34, _rt.subtitle, make_colour_rgb(170, 180, 220));
     var _boss = boss_find();
+    var _exit_open = run_map_exit_open();
     if (_boss != noone) {
         // vida do chefe: barra central com marca da mudanca de fase
         var _bx = _gw * 0.5 - 200;
@@ -225,10 +229,18 @@ function hud_draw() {
         draw_set_halign(fa_right);
     } else if (_rt.enc_state == ENC.ACTIVE || _rt.enc_state == ENC.BETWEEN) {
         hud_text(_gw - 18, 54, "ONDA " + string(_rt.enc_wave + 1) + "/" + string(encounter_wave_count()) + "   INIMIGOS: " + string(enemies_alive()), _gold);
-    } else if (_rt.enc_state == ENC.CLEARED && global.stage.kind != "boss") {
-        hud_text(_gw - 18, 54, "SAIDA LIBERADA", _cyan);
-        // "GO" grande piscando com seta, no canto direito e fora da area de luta
-        if (_rt.go_timer > 0 && (_rt.go_timer div 15) mod 2 == 0) {
+    } else if (_exit_open || (_rt.enc_state == ENC.CLEARED && global.stage.kind != "boss")) {
+        if (_exit_open) {
+            // chefe derrotado: a saida e a borda direita da arena
+            var _next = global.run.map_index + 1;
+            var _dest = (_next < array_length(global.run.maps)) ? global.run.maps[_next].name : "VITORIA";
+            hud_text(_gw - 18, 54, "SAIDA A DIREITA -> " + _dest, _gold);
+        } else {
+            hud_text(_gw - 18, 54, "SAIDA LIBERADA", _cyan);
+        }
+        // "GO" grande piscando com seta, no canto direito e fora da area de luta.
+        // Depois do chefe ele fica ate o jogador sair.
+        if ((_rt.go_timer > 0 || _exit_open) && (((_rt.go_timer > 0) ? _rt.go_timer : current_time div 17) div 15) mod 2 == 0) {
             draw_text_transformed_colour(_gw - 64, 78, "GO", 3, 3, 0, _gold, _gold, _gold, _gold, 1);
             draw_set_colour(_gold);
             draw_triangle(_gw - 54, 86, _gw - 54, 114, _gw - 26, 100, false);

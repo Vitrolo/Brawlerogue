@@ -34,6 +34,7 @@ function actor_set_state(_state) {
 /// Aplica velocidade, gravidade e limites da sala. Retorna true no frame em que pousa.
 function actor_physics() {
     var _landed = false;
+    var _x0 = x;
     x += vx;
     y += vy;
     if (z > 0 || vz > 0) {
@@ -45,7 +46,14 @@ function actor_physics() {
             _landed = true;
         }
     }
-    x = clamp(x, stage_x1() + body_w, stage_x2() - body_w);
+    var _xmin = stage_x1() + body_w;
+    var _xmax = stage_x2() - body_w;
+    // inimigo entrando de fora da tela: pode estar alem do limite, mas nao se afasta mais
+    if (variable_instance_exists(id, "entering") && entering) {
+        _xmin = min(_xmin, _x0);
+        _xmax = max(_xmax, _x0);
+    }
+    x = clamp(x, _xmin, _xmax);
     y = clamp(y, global.stage.floor_top, global.stage.floor_bottom);
     return _landed;
 }
