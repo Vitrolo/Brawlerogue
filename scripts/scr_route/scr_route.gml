@@ -369,13 +369,13 @@ function run_maps_build() {
         // Entradas das salas opcionais. O tipo "challenge" usa os modulos "event".
         // Variedade: cada corredor sorteia quais tipos aparecem (special_slots de 4)
         // e em que ordem. "img_x" e a posicao da entrada dentro da imagem do
-        // cenario (768 px); o fundo se repete espelhando os tiles impares, entao
-        // em um tile impar a entrada aparece em 768 - img_x.
+        // cenario (768 px, depende do bioma); o fundo se repete espelhando os
+        // tiles impares, entao em um tile impar a entrada aparece em 768 - img_x.
         var _special_specs = [
-            { kind: "reward", module_kind: "reward", label: "TESOURO", img_x: 584 },
-            { kind: "challenge", module_kind: "event", label: "DESAFIO", img_x: 312 },
-            { kind: "shop", module_kind: "shop", label: "LOJA", img_x: 328 },
-            { kind: "rest", module_kind: "rest", label: "DESCANSO", img_x: 496 }
+            { kind: "reward", module_kind: "reward", label: "TESOURO", img_x: stage_entrance_img_x(_biome.bid, "reward") },
+            { kind: "challenge", module_kind: "event", label: "DESAFIO", img_x: stage_entrance_img_x(_biome.bid, "challenge") },
+            { kind: "shop", module_kind: "shop", label: "LOJA", img_x: stage_entrance_img_x(_biome.bid, "shop") },
+            { kind: "rest", module_kind: "rest", label: "DESCANSO", img_x: stage_entrance_img_x(_biome.bid, "rest") }
         ];
         array_shuffle_ext(_special_specs);
         var _tiles = [0, 1, 2, 3];

@@ -17,7 +17,7 @@ Saida (sprites do projeto, substituindo os antigos de mesmo nome):
                                        refeito ate a base da tela e a porta de
                                        saida do bioma na direita
   spr_bg_chunk_<bioma>_<tipo>          tile do corredor com a MESMA porta do
-                                       bioma e o objeto do tipo ao lado dela
+                                       bioma, num trecho livre da parede
 
 Assim a entrada no corredor, a saida dentro da sala e o objeto da sala usam a
 mesma arte. Substitui import_room_interiors.py e import_entrance_chunks.py.
@@ -36,11 +36,19 @@ BIOMES = ("sewer", "streets", "rooftops")
 KINDS = ("reward", "challenge", "shop", "rest")
 VIEW_W, VIEW_H, FLOOR_Y = 480, 272, 170
 
-# Objeto que representa cada tipo de sala (dentro da sala e ao lado da entrada).
-KIND_OBJECT = {"reward": "chest", "shop": "stall", "rest": "bench", "challenge": "dummy"}
 
-# Centro da entrada dentro do tile de 768 px (os mesmos de run_maps_build).
-ART_CENTERS = {"reward": 584, "challenge": 312, "shop": 328, "rest": 496}
+# Centro da entrada dentro do tile de 768 px, por bioma (os mesmos de
+# stage_entrance_img_x). Cada um cai num trecho da parede sem canos, janelas
+# ou lojas por baixo, para a porta nao ficar sobreposta ao cenario.
+ART_CENTERS = {
+    "sewer":    {"reward": 560, "challenge": 240, "shop": 470, "rest": 32},
+    "streets":  {"reward": 630, "challenge": 219, "shop": 630, "rest": 219},
+    "rooftops": {"reward": 505, "challenge": 295, "shop": 505, "rest": 295},
+}
+# Antes de colar a porta, cobre o que sobraria do cenario dos lados dela copiando
+# pixels de `dy` linhas abaixo: (x0, x1, y0, y1, dy). Nas ruas, o toldo da loja
+# amarela apareceria nas bordas da porta.
+CHUNK_PATCH = {("streets", 630): (596, 664, 80, 101, 22)}
 # Linha do cenario do corredor onde o chao comeca (stage_backdrop_info.horizon).
 CORRIDOR_HORIZON = {"sewer": 205, "streets": 138, "rooftops": 190}
 # Quantos pixels a base da porta invade o chao (a do esgoto tem um caminho de terra).
@@ -144,6 +152,19 @@ def load_objects():
     }
 
 
+def strip_door(biome, door):
+    """Tira o cano cinza que vem colado na porta do esgoto: ele nao combina com
+    os canos do cenario e ficava parecendo um objeto solto ao lado da entrada."""
+    if biome != "sewer":
+        return door
+    out = [row[:] for row in door]
+    for y, row in enumerate(out):
+        for x in range(len(row)):
+            if x >= 56 or (x >= 44 and y < 24):
+                row[x] = (0, 0, 0, 0)
+    return out
+
+
 def build_room(biome, door):
     """Interior 480x272: parede da imagem acima da linha do chao do jogo, chao
     refeito com a faixa limpa (cada fileira deslocada) e a porta de saida."""
@@ -168,13 +189,17 @@ def build_room(biome, door):
     return out
 
 
-def build_chunk(biome, kind, door, obj):
-    """Tile do corredor com a porta do bioma e o objeto do tipo ao lado."""
+def build_chunk(biome, kind, door):
+    """Tile do corredor com a porta do bioma num trecho livre da parede."""
     px = opaque(pngio.read_png(os.path.join(ROOT, "tools", "pixellab_raw", f"bg_{biome}.png")))
-    cx = ART_CENTERS[kind]
-    floor = CORRIDOR_HORIZON[biome]
-    stamp_bottom(px, door, cx, floor + DOOR_SINK[biome])
-    stamp_bottom(px, obj, cx + 34 + len(obj[0]) // 2, floor + 6)
+    cx = ART_CENTERS[biome][kind]
+    patch = CHUNK_PATCH.get((biome, cx))
+    if patch:
+        x0, x1, y0, y1, dy = patch
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                px[y][x] = px[y + dy][x]
+    stamp_bottom(px, door, cx, CORRIDOR_HORIZON[biome] + DOOR_SINK[biome])
     return px
 
 
@@ -191,14 +216,14 @@ def main():
         print(f"spr_{key}: {w}x{h}")
 
     for biome in BIOMES:
-        door = pngio.read_png(os.path.join(RAW, f"door_{biome}.png"))
+        door = strip_door(biome, pngio.read_png(os.path.join(RAW, f"door_{biome}.png")))
         room = build_room(biome, door)
         for kind in KINDS:
             name = f"spr_interior_{biome}_{kind}"
             importer.write_sprite(name, [room], (0, 0))
             names.append(name)
             name = f"spr_bg_chunk_{biome}_{kind}"
-            importer.write_sprite(name, [build_chunk(biome, kind, door, objects["obj_" + KIND_OBJECT[kind]])], (0, 0))
+            importer.write_sprite(name, [build_chunk(biome, kind, door)], (0, 0))
             names.append(name)
         print(f"{biome}: sala interna e 4 entradas")
     importer.register_in_yyp(names)

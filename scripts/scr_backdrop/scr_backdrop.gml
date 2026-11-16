@@ -29,6 +29,21 @@ function stage_backdrop_info(_biome) {
     }
 }
 
+/// Centro da entrada integrada dentro do tile de 768 px do cenario. Cada bioma tem
+/// trechos de parede livres diferentes (sem canos, janelas ou lojas por baixo).
+/// Mesma tabela de ART_CENTERS em tools/import_v2_art.py.
+function stage_entrance_img_x(_biome, _kind) {
+    switch (_biome) {
+        case "sewer":
+            switch (_kind) { case "reward": return 560; case "challenge": return 240; case "shop": return 470; default: return 32; }
+        case "streets":
+            return (_kind == "reward" || _kind == "shop") ? 630 : 219;
+        case "rooftops":
+            return (_kind == "reward" || _kind == "shop") ? 505 : 295;
+    }
+    return 384;
+}
+
 /// Variante de cenario que contem a entrada integrada para este tipo de local.
 function stage_backdrop_entrance(_biome, _kind) {
     switch (_biome) {
