@@ -234,7 +234,9 @@ function hud_draw() {
             draw_triangle(_gw - 54, 86, _gw - 54, 114, _gw - 26, 100, false);
         }
     }
-    if (global.run.seed != 0) hud_text(_gw - 18, _gh - 24, "SEED " + string(global.run.seed), make_colour_rgb(120, 128, 170));
+    // a seed fica logo acima do minimapa quando ele aparece
+    var _seed_y = minimap_available() ? _gh - MINIMAP_H - 44 : _gh - 24;
+    if (global.run.seed != 0) hud_text(_gw - 18, _seed_y, "SEED " + string(global.run.seed), make_colour_rgb(120, 128, 170));
 
     // Nas salas escuras a identificacao continua sobre o portal. No corredor,
     // o jogador ve o tipo no aviso de interacao, sem texto pairando no cenario.
@@ -286,6 +288,7 @@ function hud_draw() {
     }
 
     fx_draw_gui();
+    minimap_draw(); // canto inferior direito; segurar TAB abre o mapa completo
     choice_draw();
 
     // derrota

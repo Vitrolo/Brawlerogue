@@ -85,6 +85,14 @@ function stage_build() {
     var _spawn_x = _def.player_spawn.x;
     var _spawn_y = _def.player_spawn.y;
     var _spawn_facing = 1;
+    // Nas salas especiais o jogador surge na propria porta (a de saida, em
+    // width - 52, a mesma criada abaixo), como se tivesse acabado de entrar
+    // por ela, virado para dentro da sala.
+    if (_def.kind == "rest" || _def.kind == "reward" || _def.kind == "shop" || _def.kind == "event") {
+        _spawn_x = _def.width - 52;
+        _spawn_y = _def.floor_top + 6;
+        _spawn_facing = -1;
+    }
     var _has_return = _def.kind == "main_map" && !is_undefined(global.run.return_context)
         && global.run.return_context.stage_sid == _def.sid;
     if (_has_return) {
