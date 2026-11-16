@@ -44,13 +44,12 @@ function enemy_create() {
     exploded = false;
     dmg_out = 1;
 
-    // Elite: mais vida, mais dano, maior e dourado; vale mais moedas.
+    // Elite: mais vida, mais dano e dourado; vale mais moedas.
     if (!variable_instance_exists(id, "elite")) elite = false;
     if (elite && cfg.ai != "boss") {
         hp_max = ceil(hp_max * CFG.elite.hp_mult);
         hp = hp_max;
         dmg_out = CFG.elite.damage_mult;
-        draw_scale *= CFG.elite.scale_mult;
         tint = make_colour_rgb(255, 214, 110);
     } else {
         elite = false;

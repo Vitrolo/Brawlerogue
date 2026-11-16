@@ -4,7 +4,12 @@
 /// Cada imagem tem a parede em cima e o chao embaixo, mas a linha onde o chao comeca
 /// muda de uma para outra. stage_backdrop_info diz, em pixels da imagem:
 ///   horizon  - linha onde o chao comeca; e alinhada com o topo do chao do jogo
-///   band_y0, band_y1 - faixa de chao que se repete para baixo ate cobrir a tela
+///   band_y0, band_y1 - faixa de chao que se repete para baixo ate cobrir a tela.
+///       Deve ser UMA fileira de piso limpa: sem pocas, reflexos, luzes ou pes de
+///       objetos, senao esses detalhes aparecem duplicados no chao.
+///   band_shift - quanto cada copia da faixa anda para o lado, para as rachaduras
+///       nao se alinharem em colunas. Use 0 se algo vertical cruza a faixa (o
+///       pilar do lobby) ou se a faixa nao chega a aparecer repetida.
 /// A imagem se repete na horizontal espelhando uma copia sim, uma nao, para a emenda
 /// nao aparecer. Para trocar um cenario: substitua o PNG em tools/pixellab_raw, rode
 /// tools/import_pixellab.py e ajuste as tres linhas do bioma aqui.
@@ -16,11 +21,11 @@ function decor_rand(_seed, _i) {
 
 function stage_backdrop_info(_biome) {
     switch (_biome) {
-        case "sewer":    return { sprite: spr_bg_sewer,    horizon: 205, band_y0: 207, band_y1: 262 };
-        case "streets":  return { sprite: spr_bg_streets,  horizon: 138, band_y0: 156, band_y1: 243 };
-        case "rooftops": return { sprite: spr_bg_rooftops, horizon: 190, band_y0: 192, band_y1: 272 };
-        case "boss":     return { sprite: spr_bg_boss,     horizon: 228, band_y0: 230, band_y1: 272 };
-        default:         return { sprite: spr_bg_lobby,    horizon: 203, band_y0: 204, band_y1: 238 };
+        case "sewer":    return { sprite: spr_bg_sewer,    horizon: 205, band_y0: 228, band_y1: 249, band_shift: 173 };
+        case "streets":  return { sprite: spr_bg_streets,  horizon: 138, band_y0: 156, band_y1: 243, band_shift: 0 };
+        case "rooftops": return { sprite: spr_bg_rooftops, horizon: 190, band_y0: 236, band_y1: 272, band_shift: 173 };
+        case "boss":     return { sprite: spr_bg_boss,     horizon: 228, band_y0: 254, band_y1: 272, band_shift: 173 };
+        default:         return { sprite: spr_bg_lobby,    horizon: 203, band_y0: 223, band_y1: 238, band_shift: 0 };
     }
 }
 
@@ -144,9 +149,18 @@ function stage_draw_placeholder() {
         if (_oy > -16) {
             draw_sprite_part_ext(_tile_spr, 0, 0, 0, _w, 1, _x, -16, _xs, _oy + 16, c_white, 1);
         }
-        // repete a faixa de chao ate o fim da tela
-        for (var _y = _oy + _info.band_y1; _y < _bottom; _y += _band_h) {
-            draw_sprite_part_ext(_spr, 0, 0, _info.band_y0, _w, _band_h, _x, _y, _xs, 1, c_white, 1);
+    }
+
+    // Repete a faixa de chao ate o fim da tela. Cada copia e uma tira propria,
+    // espelhada tile a tile como o fundo, mas deslocada na horizontal.
+    var _row = 1;
+    for (var _y = _oy + _info.band_y1; _y < _bottom; _y += _band_h) {
+        var _off = (_row * _info.band_shift) mod _w;
+        for (var _j = -1; _j * _w - _off < _s.width + 16; _j++) {
+            var _jflip = (_j mod 2 != 0);
+            var _jx = _j * _w - _off + (_jflip ? _w : 0);
+            draw_sprite_part_ext(_spr, 0, 0, _info.band_y0, _w, _band_h, _jx, _y, _jflip ? -1 : 1, 1, c_white, 1);
         }
+        _row++;
     }
 }

@@ -358,6 +358,17 @@ function boss_draw() {
 
     // derrotado: pisca no fim antes de sumir
     if (state == BS.DEAD && state_timer > cfg.dead_frames - 50 && _blink) return;
+
+    // aura no chao: destaca o chefe sem ampliar o sprite (escala quebrada deforma os pixels)
+    if (state != BS.DEAD && z <= 0) {
+        var _pulse = 2 * sin(anim_clock / 14);
+        draw_set_colour((phase == 2) ? _warn : make_colour_rgb(255, 60, 170));
+        draw_set_alpha(0.5);
+        draw_ellipse(x - 20 - _pulse, y - 6, x + 20 + _pulse, y + 6, true);
+        draw_ellipse(x - 16 - _pulse, y - 4, x + 16 + _pulse, y + 4, true);
+        draw_set_alpha(1);
+        draw_set_colour(c_white);
+    }
     actor_draw();
 
     // "!" acima da cabeca durante avisos parados

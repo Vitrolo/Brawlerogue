@@ -1,19 +1,12 @@
-// No corredor principal, a entrada ja esta desenhada dentro do tile do cenario.
-// Nas salas de fundo preto, mantemos o portal simples usado para sair/voltar.
-if (!is_undefined(global.stage) && global.stage.kind != "main_map") {
-    var _is_special_room = global.stage.kind == "rest" || global.stage.kind == "reward"
-        || global.stage.kind == "shop" || global.stage.kind == "event";
-    // A saida ja esta pintada na parede do interior; mantemos o gatilho e o prompt.
-    if (!(kind == "return" && _is_special_room)) {
-        var _door_sprite = spr_door_lobby;
-        switch (global.stage.biome) {
-            case "sewer":    _door_sprite = spr_door_sewer; break;
-            case "streets":  _door_sprite = spr_door_streets; break;
-            case "rooftops": _door_sprite = spr_door_rooftops; break;
-        }
-
-        var _alpha = locked ? 0.72 : 1;
-        draw_sprite_ext(_door_sprite, 0, x, y - 9, 0.6, 0.6, 0, c_white, _alpha);
-        draw_set_colour(c_white);
-    }
+// As portas nao desenham sprite proprio: no corredor e nas salas especiais a
+// entrada e a saida ja estao pintadas no cenario. So a saida do lobby, que fica
+// na borda direita da sala, ganha uma seta para indicar o caminho.
+if (kind == "run_start") {
+    var _ax = x + 6 + ((bob div 12) mod 2) * 2;
+    var _ay = y - 40;
+    draw_set_colour(c_black);
+    draw_triangle(_ax - 5, _ay - 8, _ax - 5, _ay + 8, _ax + 9, _ay, false);
+    draw_set_colour(make_colour_rgb(255, 210, 63));
+    draw_triangle(_ax - 4, _ay - 6, _ax - 4, _ay + 6, _ax + 7, _ay, false);
+    draw_set_colour(c_white);
 }

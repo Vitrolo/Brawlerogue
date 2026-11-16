@@ -253,7 +253,8 @@ function choice_draw() {
 /// Cria os interativos da sala atual (chamado por stage_build).
 function interact_spawn_for_stage(_def, _seed, _persist = undefined) {
     var _cx = _def.width * 0.5;
-    var _cy = _def.floor_top + 26;
+    // encostado na parede: o objeto da sala ja esta pintado no cenario
+    var _cy = _def.floor_top + 8;
     var _used = !is_undefined(_persist) && _persist.used;
     var _stock = is_undefined(_persist) ? undefined : _persist.stock;
     switch (_def.kind) {
@@ -352,21 +353,23 @@ function interact_persist_state(_inst) {
     }
 }
 
-/// PLACEHOLDER: interativos desenhados com retangulos.
+/// Marcador dos interativos e a arma no chao (esta ainda e um retangulo).
 function interact_draw() {
     var _gold = make_colour_rgb(255, 210, 63);
     var _dark = make_colour_rgb(6, 8, 20);
     var _col = used ? make_colour_rgb(90, 94, 120) : room_kind_colour(kind == "chest" ? "reward" : kind);
 
-    // os interativos do lobby ja estao pintados no cenario: so o marcador aparece
-    if (kind != "meta_shop" && kind != "char") {
+    // So a arma no chao tem desenho proprio. Os outros interativos (lobby e salas
+    // especiais) ja estao pintados no cenario: mostram apenas o marcador.
+    var _painted = (kind != "weapon");
+    if (!_painted) {
         draw_set_alpha(0.3);
         draw_set_colour(c_black);
         draw_ellipse(x - 14, y - 3, x + 14, y + 3, false);
         draw_set_alpha(1);
     }
 
-    switch (kind) {
+    if (!_painted) switch (kind) {
         case "rest": // banco
             draw_set_colour(_col);
             draw_rectangle(x - 16, y - 12, x + 16, y - 8, false);

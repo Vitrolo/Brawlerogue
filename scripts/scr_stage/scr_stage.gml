@@ -27,7 +27,7 @@ function stage_defs_init() {
         floor_bottom: 258,
         player_spawn: { x: 90, y: 222 },
         doors: [
-            { x: 380, kind: "run_start", label: "INICIAR RUN", requires_clear: false }
+            { x: 458, kind: "run_start", label: "SAIR PARA A RUA (iniciar run)", requires_clear: false }
         ],
         enemies: [],
         decor: 0,

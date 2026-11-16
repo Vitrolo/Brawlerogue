@@ -67,12 +67,63 @@ def char_dir(char):
     return os.path.join(RAW, char, "Idle")
 
 
+# Personagens que saem do PixelLab sem contorno e com cores que variam de uma
+# animacao para outra. Para ficarem no padrao dos inimigos, cada quadro passa por
+# restyle(): as cores sao trazidas para a paleta da pose parada + andar + idle e a
+# silhueta ganha o contorno escuro de 1 px que os outros personagens ja tem.
+RESTYLED = {"player"}
+OUTLINE = (11, 9, 9, 255)
+_palette_cache = {}
+
+
+def reference_palette(char):
+    if char not in _palette_cache:
+        base = char_dir(char)
+        files = [os.path.join(base, "rotations", "east.png")]
+        for anim in ("walk", "idle"):
+            folder = os.path.join(base, "animations", anim, "east")
+            files += [os.path.join(folder, f) for f in sorted(os.listdir(folder))]
+        colours = set()
+        for f in files:
+            for row in pngio.read_png(f):
+                colours.update(c[:3] for c in row if c[3] > 0)
+        _palette_cache[char] = sorted(colours)
+    return _palette_cache[char]
+
+
+def restyle(px, palette):
+    h, w = len(px), len(px[0])
+    nearest = {}
+
+    def snap(c):
+        if c not in nearest:
+            # distancia em RGB mais a diferenca de saturacao, para pele clara nao virar branco
+            sat = max(c) - min(c)
+            nearest[c] = min(palette, key=lambda p: (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2
+                             + 3 * ((max(p) - min(p)) - sat) ** 2)
+        return nearest[c]
+
+    out = [[(snap(c[:3]) + (255,)) if c[3] > 0 else (0, 0, 0, 0) for c in row] for row in px]
+    solid = [[c[3] > 0 for c in row] for row in px]
+    for y in range(h):
+        for x in range(w):
+            if solid[y][x]:
+                continue
+            if ((x > 0 and solid[y][x - 1]) or (x < w - 1 and solid[y][x + 1])
+                    or (y > 0 and solid[y - 1][x]) or (y < h - 1 and solid[y + 1][x])):
+                out[y][x] = OUTLINE
+    return out
+
+
 def load_frame(char, anim, index):
     base = char_dir(char)
     if anim in ("rot", "breath"):
         px = pngio.read_png(os.path.join(base, "rotations", "east.png"))
-        return breathe(px) if anim == "breath" else px
-    return pngio.read_png(os.path.join(base, "animations", anim, "east", f"frame_{index:03d}.png"))
+    else:
+        px = pngio.read_png(os.path.join(base, "animations", anim, "east", f"frame_{index:03d}.png"))
+    if char in RESTYLED:
+        px = restyle(px, reference_palette(char))
+    return breathe(px) if anim == "breath" else px
 
 
 def breathe(px):

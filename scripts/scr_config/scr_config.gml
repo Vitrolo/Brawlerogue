@@ -34,7 +34,6 @@ function config_init() {
             chance: [0.06, 0.12, 0.18], // chance por inimigo, por bioma
             hp_mult: 1.8,
             damage_mult: 1.35,
-            scale_mult: 1.12,
             coin_mult: 4
         },
         props: {
@@ -477,7 +476,7 @@ function config_enemies_init() {
         speed_y: 0.7,
         body_w: 13,
         body_h: 56,
-        scale: 1.25,           // sprite de 64 px ampliado para ficar maior que o bruto
+        scale: 1,              // escala inteira: ampliar por 1.25 deformava os pixels
         think_min: 0,          // lidos pela criacao comum de inimigos; o chefe nao usa
         think_max: 0,
         intro_frames: 90,
@@ -517,7 +516,7 @@ function config_enemies_init() {
         speed_y: 0.55,
         body_w: 14,
         body_h: 56,
-        scale: 1.3,
+        scale: 1,
         near_patterns: ["swipe", "slam", "slam"],
         far_patterns: ["slam", "dash", "slam"],
         summon: ["thug", "bomber"],
@@ -538,7 +537,7 @@ function config_enemies_init() {
         speed_y: 1.0,
         body_w: 11,
         body_h: 52,
-        scale: 1.35,
+        scale: 1,
         think_frames: [45, 28],
         near_patterns: ["swipe", "swipe", "dash"],
         far_patterns: ["dash", "dash", "slam"],
