@@ -106,7 +106,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - **Arma nova:** um item em `CFG.weapons`, um golpe com `attack_define` e um `mod_define` de categoria `weapon`.
 - **Golpe novo:** `attack_define(nome, campos)`; os padrões e o significado de cada campo estão no topo de `scr_config`.
 - **Controle e remapeamento:** só `input_init`; o resto do jogo consulta `ACT.*`.
-- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o importador. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`). As entradas dos mapas são variantes completas desses fundos, montadas por `python tools/import_entrance_chunks.py` com as quatro posições fixas do corredor.
+- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o importador. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`). Salas internas, entradas do corredor e objetos (baú, banca, banco, boneco de treino, barril, caixa, lixeira, carro, armas no chão) vêm de `tools/pixellab_raw/v2` e são montados por `python tools/import_v2_art.py`: a mesma porta do bioma aparece na entrada do corredor e na saída da sala, e o objeto do tipo da sala aparece ao lado da entrada e dentro dela.
 
 ## Estrutura
 
@@ -129,7 +129,7 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 - `objects/` — eventos finos que chamam os scripts. `obj_game` é persistente e nasce em `rm_boot`.
 - `rooms/` — `rm_boot`, `rm_lobby`, `rm_sandbox`. Os rooms são cascas vazias; o conteúdo vem dos dados.
 - `tools/gen_project.py` — gerou os `.yy`, o `.yyp` e os sprites placeholder iniciais. Não rode mais o script inteiro nem `gen_sprites`: ele sobrescreve o `.yyp` e troca a arte atual pelos bonecos de blocos.
-- `tools/import_pixellab.py`, `tools/import_entrance_chunks.py` e `tools/pngio.py` — importam os cenários e montam os trechos integrados de entrada.
+- `tools/import_pixellab.py`, `tools/import_v2_art.py` e `tools/pngio.py` — importam personagens, cenários, salas internas, entradas e objetos.
 
 ## Novidades desta versão (ainda não testadas em jogo)
 

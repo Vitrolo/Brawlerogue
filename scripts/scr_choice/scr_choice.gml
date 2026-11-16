@@ -253,8 +253,8 @@ function choice_draw() {
 /// Cria os interativos da sala atual (chamado por stage_build).
 function interact_spawn_for_stage(_def, _seed, _persist = undefined) {
     var _cx = _def.width * 0.5;
-    // encostado na parede: o objeto da sala ja esta pintado no cenario
-    var _cy = _def.floor_top + 8;
+    // perto da parede do fundo, no centro da sala
+    var _cy = _def.floor_top + 12;
     var _used = !is_undefined(_persist) && _persist.used;
     var _stock = is_undefined(_persist) ? undefined : _persist.stock;
     switch (_def.kind) {
@@ -353,61 +353,48 @@ function interact_persist_state(_inst) {
     }
 }
 
-/// Marcador dos interativos e a arma no chao (esta ainda e um retangulo).
+/// Sprite do objeto de cada interativo. Os do lobby (saco de pancada e armario)
+/// ja estao pintados no cenario e nao tem sprite: retorna -1.
+function interact_sprite() {
+    switch (kind) {
+        case "chest":  return spr_obj_chest;
+        case "shop":   return spr_obj_stall;
+        case "rest":   return spr_obj_bench;
+        case "event":  return spr_obj_dummy;
+        case "weapon": return weapon_def(wid).sprite;
+    }
+    return -1;
+}
+
+/// Objeto da sala (bau, banca, banco, boneco de treino), arma no chao e o
+/// marcador de interacao. Os mesmos objetos aparecem ao lado da entrada da sala
+/// no corredor (tools/import_v2_art.py).
 function interact_draw() {
     var _gold = make_colour_rgb(255, 210, 63);
-    var _dark = make_colour_rgb(6, 8, 20);
-    var _col = used ? make_colour_rgb(90, 94, 120) : room_kind_colour(kind == "chest" ? "reward" : kind);
+    var _spr = interact_sprite();
+    var _top = 46; // altura do marcador quando nao ha sprite (lobby)
 
-    // So a arma no chao tem desenho proprio. Os outros interativos (lobby e salas
-    // especiais) ja estao pintados no cenario: mostram apenas o marcador.
-    var _painted = (kind != "weapon");
-    if (!_painted) {
+    if (_spr != -1) {
+        var _sw = sprite_get_width(_spr);
         draw_set_alpha(0.3);
         draw_set_colour(c_black);
-        draw_ellipse(x - 14, y - 3, x + 14, y + 3, false);
+        draw_ellipse(x - _sw * 0.45, y - 3, x + _sw * 0.45, y + 3, false);
         draw_set_alpha(1);
-    }
-
-    if (!_painted) switch (kind) {
-        case "rest": // banco
-            draw_set_colour(_col);
-            draw_rectangle(x - 16, y - 12, x + 16, y - 8, false);
-            draw_rectangle(x - 14, y - 8, x - 11, y, false);
-            draw_rectangle(x + 11, y - 8, x + 14, y, false);
-            break;
-        case "chest": // bau
-            draw_set_colour(_col);
-            draw_rectangle(x - 12, y - 16, x + 12, y, false);
-            draw_set_colour(_dark);
-            draw_rectangle(x - 12, y - 10, x + 12, y - 9, false);
-            draw_rectangle(x - 2, y - 12, x + 2, y - 6, false);
-            break;
-        case "shop": // banca com toldo
-            draw_set_colour(make_colour_rgb(60, 62, 96));
-            draw_rectangle(x - 20, y - 14, x + 20, y, false);
-            draw_set_colour(_col);
-            draw_rectangle(x - 22, y - 34, x + 22, y - 28, false);
-            draw_rectangle(x - 20, y - 28, x - 18, y - 14, false);
-            draw_rectangle(x + 18, y - 28, x + 20, y - 14, false);
-            break;
-        case "event": // painel
-            draw_set_colour(make_colour_rgb(60, 62, 96));
-            draw_rectangle(x - 8, y - 26, x + 8, y, false);
-            draw_set_colour(_col);
-            draw_rectangle(x - 5, y - 23, x + 5, y - 14, false);
-            break;
-        case "weapon": // arma no chao
-            var _w = weapon_def(wid);
-            draw_set_colour(_w.colour);
-            draw_rectangle(x - _w.length * 0.5, y - 4, x + _w.length * 0.5, y - 2, false);
-            break;
+        if (kind == "weapon") {
+            draw_sprite(_spr, 0, x, y - 8);
+            _top = 26;
+        } else {
+            // ja usado: escurecido
+            draw_sprite_ext(_spr, 0, x, y + 2, 1, 1, 0, used ? make_colour_rgb(110, 110, 130) : c_white, 1);
+            _top = sprite_get_height(_spr) + 8;
+        }
     }
 
     // marcador de interacao disponivel
     if (!used) {
-        var _iy = y - 46 + ((bob div 12) mod 2) * 2;
-        if (kind == "weapon") _iy = y - 18 + ((bob div 12) mod 2) * 2;
+        var _iy = y - _top + ((bob div 12) mod 2) * 2;
+        draw_set_colour(c_black);
+        draw_triangle(x - 6, _iy - 1, x + 6, _iy - 1, x, _iy + 8, false);
         draw_set_colour(_gold);
         draw_triangle(x - 5, _iy, x + 5, _iy, x, _iy + 6, false);
     }

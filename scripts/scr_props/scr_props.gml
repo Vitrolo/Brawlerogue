@@ -12,7 +12,8 @@
 ///
 /// Os objetos de cada corredor sao sorteados em run_maps_build (scr_route) e
 /// guardados em map.props; um quebravel destruido nao volta.
-/// PLACEHOLDER: tudo aqui e desenhado com retangulos.
+/// Quebraveis e carro usam sprites (spr_prop_*). PLACEHOLDER: poca, claraboia e
+/// o tiro ainda sao desenhados com formas simples.
 
 function prop_is_breakable(_kind) {
     return _kind == "barrel" || _kind == "crate" || _kind == "bin";
@@ -60,8 +61,8 @@ function prop_create() {
     if (!variable_instance_exists(id, "prop_index")) prop_index = -1;
     breakable = prop_is_breakable(kind);
     z = 0;
-    body_w = 8;
-    body_h = (kind == "crate") ? 16 : 20;
+    body_w = 14;
+    body_h = 36;
     hp = 2;
     flash = 0;
     kicked = false;
@@ -273,10 +274,6 @@ function hazard_knockdown_landed(_inst) {
 }
 
 function prop_draw() {
-    var _wood = make_colour_rgb(150, 100, 60);
-    var _wood_dark = make_colour_rgb(96, 62, 36);
-    var _metal = make_colour_rgb(120, 130, 146);
-    var _metal_dark = make_colour_rgb(70, 78, 92);
     var _warn = make_colour_rgb(255, 60, 90);
 
     switch (kind) {
@@ -285,43 +282,16 @@ function prop_draw() {
         case "bin":
             draw_set_alpha(0.3);
             draw_set_colour(c_black);
-            draw_ellipse(x - 11, y - 3, x + 11, y + 3, false);
+            draw_ellipse(x - 17, y - 4, x + 17, y + 4, false);
             draw_set_alpha(1);
-            var _c1 = (kind == "bin") ? _metal : _wood;
-            var _c2 = (kind == "bin") ? _metal_dark : _wood_dark;
-            if (flash > 0) {
-                _c1 = c_white;
-                _c2 = c_white;
-            }
-            var _tilt = kicked ? facing * 2 : 0;
-            if (kind == "barrel") {
-                draw_set_colour(_c1);
-                draw_rectangle(x - 7 + _tilt, y - 20, x + 7 + _tilt, y, false);
-                draw_set_colour(_c2);
-                draw_rectangle(x - 7 + _tilt, y - 16, x + 7 + _tilt, y - 15, false);
-                draw_rectangle(x - 7 + _tilt, y - 6, x + 7 + _tilt, y - 5, false);
-                draw_rectangle(x - 7 + _tilt, y - 20, x + 7 + _tilt, y, true);
-            } else if (kind == "crate") {
-                draw_set_colour(_c1);
-                draw_rectangle(x - 8 + _tilt, y - 16, x + 8 + _tilt, y, false);
-                draw_set_colour(_c2);
-                draw_rectangle(x - 8 + _tilt, y - 16, x + 8 + _tilt, y, true);
-                draw_line(x - 8 + _tilt, y - 16, x + 8 + _tilt, y);
-                draw_line(x + 8 + _tilt, y - 16, x - 8 + _tilt, y);
-            } else {
-                draw_set_colour(_c1);
-                draw_rectangle(x - 6 + _tilt, y - 17, x + 6 + _tilt, y, false);
-                draw_set_colour(_c2);
-                draw_rectangle(x - 8 + _tilt, y - 20, x + 8 + _tilt, y - 17, false);
-                draw_rectangle(x - 3 + _tilt, y - 12, x - 2 + _tilt, y - 3, false);
-                draw_rectangle(x + 2 + _tilt, y - 12, x + 3 + _tilt, y - 3, false);
-            }
-            // rachado depois do primeiro golpe
-            if (hp < 2 && !kicked && flash <= 0) {
-                draw_set_colour(c_black);
-                draw_line(x - 3, y - body_h + 3, x + 1, y - body_h * 0.5);
-                draw_line(x + 1, y - body_h * 0.5, x - 2, y - 3);
-            }
+            var _pspr = spr_prop_crate;
+            if (kind == "barrel") _pspr = spr_prop_barrel;
+            if (kind == "bin") _pspr = spr_prop_bin;
+            // rachado depois do primeiro golpe: escurece; clarao branco ao ser atingido
+            var _ptint = (hp < 2) ? make_colour_rgb(190, 150, 140) : c_white;
+            if (flash > 0) gpu_set_fog(true, c_white, 0, 0);
+            draw_sprite_ext(_pspr, 0, round(x), round(y) + 2, facing, 1, 0, _ptint, 1);
+            if (flash > 0) gpu_set_fog(false, c_white, 0, 0);
             break;
 
         case "toxic":
@@ -375,19 +345,9 @@ function prop_draw() {
                 var _cx = round(car_x);
                 draw_set_alpha(0.35);
                 draw_set_colour(c_black);
-                draw_ellipse(_cx - 30, y - 4, _cx + 30, y + 4, false);
+                draw_ellipse(_cx - 40, y - 4, _cx + 40, y + 4, false);
                 draw_set_alpha(1);
-                draw_set_colour(make_colour_rgb(200, 40, 70));
-                draw_rectangle(_cx - 28, y - 16, _cx + 28, y - 4, false);
-                draw_rectangle(_cx - 16, y - 26, _cx + 12, y - 16, false);
-                draw_set_colour(make_colour_rgb(150, 220, 240));
-                draw_rectangle(_cx - 12, y - 24, _cx - 2, y - 17, false);
-                draw_rectangle(_cx + 1, y - 24, _cx + 9, y - 17, false);
-                draw_set_colour(make_colour_rgb(20, 20, 28));
-                draw_circle(_cx - 17, y - 3, 5, false);
-                draw_circle(_cx + 17, y - 3, 5, false);
-                draw_set_colour(make_colour_rgb(255, 240, 150));
-                draw_rectangle(_cx + 26, y - 12, _cx + 29, y - 8, false);
+                draw_sprite(spr_prop_car, 0, _cx, y + 3);
             }
             break;
     }
