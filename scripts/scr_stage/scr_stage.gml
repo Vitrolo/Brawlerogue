@@ -238,76 +238,57 @@ function encounter_spawn_wave(_index) {
     var _n = min(array_length(_wave), CFG.encounter.max_wave_size);
     var _offscreen = global.stage.kind == "main_map"
         && global.run.maps[global.stage_rt.map_index].sections[global.stage_rt.section_index].kind == "combat";
-    var _side_count = [0, 0]; // inimigos ja colocados a esquerda e a direita
-    var _E = CFG.encounter;
+    var _sec = _offscreen ? global.run.maps[global.stage_rt.map_index].sections[global.stage_rt.section_index] : undefined;
     for (var _i = 0; _i < _n; _i++) {
         var _e = _wave[_i];
-        // inimigos comuns surgem enemy_count_mult vezes; o chefe so uma
-        var _copies = (CFG.enemies[$ _e.type].ai == "boss") ? 1 : max(1, _E.enemy_count_mult);
-        for (var _c = 0; _c < _copies; _c++) {
-            var _vars = {
-                enemy_type: _e.type,
-                elite: variable_struct_exists(_e, "elite") && _e.elite
-            };
-            // copias alternam acima e abaixo da posicao original, sem sair do chao
-            var _dir = (_c mod 2 == 1) ? 1 : -1;
-            var _step = (_c + 1) div 2;
-            var _sy = clamp(_e.y + _dir * _step * _E.copy_offset_y, global.stage.floor_top, global.stage.floor_bottom);
-            var _sx = _e.x + _dir * _step * _E.copy_offset_x;
-            if (_offscreen) {
-                // Mesma onda (tipo, elite, profundidade); so a entrada muda:
-                // nasce fora da camera e caminha ate a posicao da onda.
-                var _spawn = encounter_offscreen_spawn(_e, _side_count);
-                _side_count[_spawn.side] += 1;
-                _sx = _spawn.x;
-                _vars.entering = true;
-                _vars.enter_x = clamp(_spawn.enter_x + _dir * _step * _E.copy_offset_x,
-                    global.stage_rt.lock_x1 + _E.enter_inset, global.stage_rt.lock_x2 - _E.enter_inset);
-            }
-            instance_create_depth(_sx, _sy, 0, obj_enemy, _vars);
+        var _elite = variable_struct_exists(_e, "elite") && _e.elite;
+        if (_offscreen) {
+            // tipo e elite da onda; o ponto de entrada e sorteado fora da camera
+            enemy_spawn_offscreen(_e.type, _elite, _sec.x1 - CFG.encounter.offscreen_margin,
+                _sec.x2 + CFG.encounter.offscreen_margin);
+        } else {
+            instance_create_depth(_e.x, _e.y, 0, obj_enemy, { enemy_type: _e.type, elite: _elite });
         }
     }
 }
 
-/// Ponto de entrada de um inimigo de onda no corredor. O lado e o mesmo em que a
-/// onda o colocou em relacao ao jogador (ondas desenhadas a mao continuam vindo
-/// do lado previsto); se esse lado sair dos limites do trecho, usa o outro.
-/// Inimigos do mesmo lado ficam enfileirados para nao nascerem sobrepostos.
-/// _side_count: [esquerda, direita] ja ocupados (quem chama soma o lado devolvido).
-function encounter_offscreen_spawn(_e, _side_count) {
+/// Cria um inimigo num ponto aleatorio fora da camera: lado sorteado, distancia
+/// alem da borda sorteada (offscreen_margin + ate offscreen_jitter) e
+/// profundidade sorteada. Ele caminha ate um ponto aleatorio dentro da tela, do
+/// lado por onde entrou, e so entao comeca a agir (ES.SPAWN em scr_enemy).
+/// _lo, _hi: limites fisicos do lugar; se o lado sorteado cair fora, usa o outro.
+function enemy_spawn_offscreen(_type, _elite, _lo, _hi) {
     var _E = CFG.encounter;
+    var _s = global.stage;
     var _rt = global.stage_rt;
-    var _section = global.run.maps[_rt.map_index].sections[_rt.section_index];
-    // a camera ja esta presa na arena (cam_lock antes da onda): usa o destino dela
+    // com a arena travada a camera vai para o destino de cam_target_x
     var _cam_l = cam_target_x();
     var _cam_r = _cam_l + VIEW_W;
-    var _p = instance_find(obj_player, 0);
-    var _px = (_p != noone) ? _p.x : (_cam_l + _cam_r) * 0.5;
-    var _lo = _section.x1 - _E.offscreen_margin;
-    var _hi = _section.x2 + _E.offscreen_margin;
 
-    var _pref = (_e.x < _px) ? 0 : 1;
-    var _side = _pref;
-    var _x = 0;
-    for (var _try = 0; _try < 2; _try++) {
-        var _s = (_try == 0) ? _pref : 1 - _pref;
-        var _off = _E.offscreen_margin + _side_count[_s] * _E.offscreen_spacing;
-        var _cand = (_s == 0) ? _cam_l - _off : _cam_r + _off;
-        if (_try == 0) {
-            _side = _s;
-            _x = _cand;
-        }
-        if (_cand >= _lo && _cand <= _hi) {
-            _side = _s;
-            _x = _cand;
-            break;
-        }
+    var _side = irandom(1); // 0 = esquerda, 1 = direita
+    var _off = _E.offscreen_margin + irandom(_E.offscreen_jitter);
+    var _x = (_side == 0) ? _cam_l - _off : _cam_r + _off;
+    if (_x < _lo || _x > _hi) {
+        _side = 1 - _side;
+        _x = (_side == 0) ? _cam_l - _off : _cam_r + _off;
     }
+    var _y = irandom_range(_s.floor_top + 6, _s.floor_bottom - 6);
 
-    // chega ate a posicao da onda, mas sempre dentro da tela e da arena
-    var _enter = clamp(_e.x, _cam_l + _E.enter_inset, _cam_r - _E.enter_inset);
-    _enter = clamp(_enter, _rt.lock_x1 + _E.enter_inset, _rt.lock_x2 - _E.enter_inset);
-    return { x: _x, enter_x: _enter, side: _side };
+    // destino aleatorio dentro da tela, na parte do lado de entrada
+    var _reach = VIEW_W * _E.enter_reach;
+    var _enter = (_side == 0)
+        ? irandom_range(_cam_l + _E.enter_inset, _cam_l + _reach)
+        : irandom_range(_cam_r - _reach, _cam_r - _E.enter_inset);
+    var _x1 = _rt.lock_active ? _rt.lock_x1 : 0;
+    var _x2 = _rt.lock_active ? _rt.lock_x2 : _s.width;
+    _enter = clamp(_enter, _x1 + _E.enter_inset, _x2 - _E.enter_inset);
+
+    return instance_create_depth(_x, _y, 0, obj_enemy, {
+        enemy_type: _type,
+        elite: _elite,
+        entering: true,
+        enter_x: _enter
+    });
 }
 
 /// Chamado todo frame pelo obj_game.

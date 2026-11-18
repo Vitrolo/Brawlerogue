@@ -343,6 +343,8 @@ function run_maps_build() {
                         elite: random(1) < CFG.elite.chance[min(_b, array_length(CFG.elite.chance) - 1)]
                     });
                 }
+                run_wave_add_extras(_wave, _biome, _b, _ox + _src.encounter.lock_x1, _ox + _src.encounter.lock_x2,
+                    _src.floor_top + 6, _src.floor_bottom - 6);
                 array_push(_waves, _wave);
             }
 
@@ -420,6 +422,23 @@ function run_maps_build() {
     global.run.maps = _maps;
     run_maps_define_stages();
     return _maps;
+}
+
+/// Acrescenta a uma onda os inimigos extras de CFG.encounter.enemy_count_mult:
+/// tipos sorteados de biome.enemy_pool (com as variantes e elites do bioma), em
+/// posicoes sorteadas da arena. Faz parte da geracao, entao segue a seed da run.
+function run_wave_add_extras(_wave, _biome, _biome_index, _x1, _x2, _y1, _y2) {
+    var _pool = _biome.enemy_pool;
+    var _extra = array_length(_wave) * (max(1, CFG.encounter.enemy_count_mult) - 1);
+    var _elite_chance = CFG.elite.chance[min(_biome_index, array_length(CFG.elite.chance) - 1)];
+    for (var _i = 0; _i < _extra; _i++) {
+        array_push(_wave, {
+            type: enemy_type_variant(_pool[irandom(array_length(_pool) - 1)], _biome_index),
+            x: irandom_range(_x1 + 40, _x2 - 40),
+            y: irandom_range(_y1, _y2),
+            elite: random(1) < _elite_chance
+        });
+    }
 }
 
 /// Modulo de combate do bioma ainda nao usado nesta run. Se o conjunto acabar,

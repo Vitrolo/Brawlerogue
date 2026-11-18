@@ -44,7 +44,7 @@ function enemy_create() {
     exploded = false;
     dmg_out = 1;
 
-    // Entrada de fora da tela (encounter_offscreen_spawn): caminha ate enter_x
+    // Entrada de fora da tela (enemy_spawn_offscreen): caminha ate enter_x
     // durante ES.SPAWN e so entao comeca a agir.
     if (!variable_instance_exists(id, "entering")) entering = false;
     if (!variable_instance_exists(id, "enter_x")) enter_x = x;

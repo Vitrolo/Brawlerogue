@@ -165,18 +165,20 @@ function config_init() {
         },
         encounter: {
             wave_delay: 45,     // pausa entre ondas
-            max_wave_size: 5,   // inimigos por onda (excedente da sala e ignorado)
-            // Cada inimigo comum das ondas e dos desafios surge esta quantidade de
-            // vezes (chefes nunca). Com 2, uma onda de ate 5 entradas traz ate 10.
-            enemy_count_mult: 2,
-            copy_offset_x: 20,  // afastamento horizontal entre as copias de um inimigo
-            copy_offset_y: 16,  // afastamento em profundidade entre as copias
+            max_wave_size: 10,  // inimigos por onda (excedente e ignorado); cabe a onda dobrada
             go_frames: 240,     // tempo em que o "GO" pisca grande
-            // Entrada dos inimigos nos trechos do corredor: surgem fora da camera
-            // e caminham ate a posicao da onda antes de agir.
-            offscreen_margin: 28,   // distancia alem da borda da camera
-            offscreen_spacing: 22,  // espaco extra entre inimigos do mesmo lado
+            // Quantidade de inimigos comuns por onda na geracao do corredor: a onda
+            // desenhada a mao ganha (mult - 1) vezes o seu tamanho em inimigos extras,
+            // de tipos sorteados do bioma (biome.enemy_pool). Chefes nunca.
+            // Os desafios tambem usam este multiplicador.
+            enemy_count_mult: 2,
+            // Entrada dos inimigos: cada um surge num ponto aleatorio fora da camera
+            // (lado, distancia e profundidade sorteados) e caminha ate um ponto
+            // aleatorio dentro da tela antes de agir.
+            offscreen_margin: 28,   // distancia minima alem da borda da camera
+            offscreen_jitter: 72,   // distancia extra sorteada alem da margem
             enter_inset: 36,        // ponto de chegada fica ao menos isto dentro da tela
+            enter_reach: 0.45,      // ate que fracao da tela o inimigo avanca a partir do lado em que entrou
             enter_timeout: 300      // frames: se nao chegar, comeca a agir mesmo assim
         },
         rewards: {

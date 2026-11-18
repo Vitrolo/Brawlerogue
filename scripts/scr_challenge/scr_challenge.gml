@@ -53,18 +53,19 @@ function challenge_wave() {
 
 function challenge_start(_rule, _seed) {
     var _s = global.stage;
-    // cada inimigo do desafio surge enemy_count_mult vezes (como nas ondas)
-    var _base = challenge_wave();
-    var _types = [];
-    for (var _i = 0; _i < array_length(_base); _i++) {
-        for (var _c = 0; _c < max(1, CFG.encounter.enemy_count_mult); _c++) array_push(_types, _base[_i]);
+    // Lista fixa do bioma + extras sorteados do bioma (enemy_count_mult, como
+    // nas ondas do corredor). Cada um entra por um ponto aleatorio fora da tela.
+    var _types = challenge_wave();
+    var _biome = biome_get(_s.biome);
+    var _bi = 0;
+    for (var _i = 0; _i < array_length(global.biomes); _i++) if (global.biomes[_i].bid == _s.biome) _bi = _i;
+    var _extra = array_length(_types) * (max(1, CFG.encounter.enemy_count_mult) - 1);
+    for (var _i = 0; _i < _extra; _i++) {
+        array_push(_types, enemy_type_variant(_biome.enemy_pool[irandom(array_length(_biome.enemy_pool) - 1)], _bi));
     }
+    var _margin = CFG.encounter.offscreen_margin + CFG.encounter.offscreen_jitter;
     for (var _i = 0; _i < array_length(_types); _i++) {
-        // entram pelos dois lados, espalhados na profundidade
-        var _left = (_i mod 2 == 0);
-        var _x = _left ? (40 + _i * 14) : (_s.width - 40 - _i * 14);
-        var _y = _s.floor_top + 12 + ((_i * 23) mod (_s.floor_bottom - _s.floor_top - 20));
-        instance_create_depth(_x, _y, 0, obj_enemy, { enemy_type: _types[_i] });
+        enemy_spawn_offscreen(_types[_i], false, -_margin, _s.width + _margin);
     }
     global.stage_rt.challenge = {
         state: "active",

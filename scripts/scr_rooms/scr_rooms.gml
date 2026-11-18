@@ -16,6 +16,9 @@ function rooms_init() {
     global.biomes = [
         {
             bid: "sewer",
+            // tipos dos inimigos extras de cada onda (enemy_type_variant ainda
+            // troca parte deles por atirador, homem-bomba e escudeiro)
+            enemy_pool: ["thug", "thug", "runner"],
             name: "ESGOTO",
             palette: {
                 sky: make_colour_rgb(5, 12, 16),
@@ -29,6 +32,9 @@ function rooms_init() {
         },
         {
             bid: "streets",
+            // tipos dos inimigos extras de cada onda (enemy_type_variant ainda
+            // troca parte deles por atirador, homem-bomba e escudeiro)
+            enemy_pool: ["thug", "runner", "runner", "brute"],
             name: "RUAS",
             palette: {
                 sky: make_colour_rgb(10, 12, 36),
@@ -42,6 +48,9 @@ function rooms_init() {
         },
         {
             bid: "rooftops",
+            // tipos dos inimigos extras de cada onda (enemy_type_variant ainda
+            // troca parte deles por atirador, homem-bomba e escudeiro)
+            enemy_pool: ["thug", "runner", "brute", "brute"],
             name: "TOPO DOS PREDIOS",
             palette: {
                 sky: make_colour_rgb(14, 10, 44),
