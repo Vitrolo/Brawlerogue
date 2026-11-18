@@ -163,7 +163,7 @@ function enemy_step() {
                 _ty = _p.y + lane_offset;
             }
             _tx = clamp(_tx, stage_x1() + body_w, stage_x2() - body_w);
-            _ty = clamp(_ty, global.stage.floor_top, global.stage.floor_bottom);
+            _ty = clamp(_ty, stage_floor_top(), stage_floor_bottom());
             enemy_move_towards(_tx, _ty);
 
             // so ataca em posicao, na mesma faixa de profundidade e dentro da tela

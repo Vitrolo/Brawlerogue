@@ -14,6 +14,7 @@ function config_init() {
         },
         camera: {
             lerp: 0.12,        // suavizacao ao seguir o jogador (1 = instantaneo)
+            lerp_y: 0.25,      // suavizacao vertical (troca de faixa pela escada)
             shake_decay: 0.8
         },
         flow: {
@@ -81,6 +82,42 @@ function config_init() {
             max_attempts: 5,
             door_spacing: 64,
             banner_frames: 150
+        },
+        // Nivel 2D de cada bioma: gerado em scr_level_gen e preenchido em
+        // run_level_fill (scr_route). Uma celula e um tile do cenario (768 px)
+        // por uma tela (270 px). Testes: node tools/level_sim/level_sim.js
+        // (o teste le este bloco, entao aqui so numeros, textos e listas).
+        level: {
+            cell_w: 768,               // largura de uma celula (= tile do cenario)
+            band_h: 270,               // altura de uma faixa (= altura da tela)
+            main_cells: [10, 12],      // corredor principal, contando inicio e chefe
+            main_combats: 5,           // combates no principal, contando a saida
+            branches: [2, 3],          // ramos que saem do principal
+            branch_cells: [2, 4],      // celulas de cada corredor de ramo
+            sub_branch_chance: 0.35,   // ramo de um ramo (uma linha mais longe)
+            max_depth: 2,              // linhas acima e abaixo do principal
+            shortcut_chance: 0.35,     // segunda escada de um ramo ao principal (atalho)
+            branch_combat_chance: 0.3, // celula livre de um ramo vira combate
+            horde_chance: 0.4,         // da terceira ponta de ramo em diante: horda em vez de beco
+            max_cells: 24,             // limite de celulas ocupadas (evita mapas confusos)
+            interiors_main: ["shop"],                  // salas com porta no principal
+            interiors_branch: ["reward", "challenge"], // salas com porta de preferencia nos ramos
+            rest_chance: 0.5,          // chance de haver sala de descanso
+            max_attempts: 12,          // tentativas antes de cair no nivel linear
+            corridor_props_chance: 0.5, // corredor livre com quebraveis e perigo (combates e becos sempre tem)
+            // em jogo
+            combat_inset: 120,         // o combate dispara com o jogador a isto das bordas do chunk
+            cap_margin: 50,            // atores param a isto da ponta de um corredor com parede
+            spawn_wall_margin: 66,     // inimigos nascem a pelo menos isto das pontas do corredor
+            stair_run: 112,            // deslocamento horizontal da escada, do pe ao topo
+            stair_zone: 14,            // distancia horizontal ao pe ou ao topo para usar a escada
+            stair_edge: 8,             // distancia da parede (pe) ou da beirada (topo) para usar
+            stair_hold: 8,             // frames segurando cima/baixo antes de entrar na escada
+            climb_speed: 1.5,          // pixels por frame na escada
+            horde_extra_enemies: 3     // horda: inimigos extras na ultima onda
+        },
+        debug: {
+            level_overlay_key: true    // F2 liga o desenho dos chunks, ligacoes e escadas
         },
         // Indicador acima das entradas especiais do corredor (desenhado no HUD).
         entrance_marker: {

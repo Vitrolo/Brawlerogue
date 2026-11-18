@@ -1,7 +1,13 @@
-/// Rota da run: um grafo em camadas gerado a partir da seed.
-/// Cada bioma tem CFG.run.layers_per_biome camadas: a primeira e a ultima tem uma
-/// sala de combate (entrada e saida do bioma); as do meio oferecem 2 a 3 opcoes.
-/// As conexoes so avancam, entao nao existem ciclos nem becos sem saida.
+/// Mapas da run e estado das salas opcionais.
+///
+/// O mapa de cada bioma e um nivel 2D: scr_level_gen gera a grade e o grafo, e
+/// run_level_fill (abaixo, em "mapas 2D") preenche com ondas, portas e objetos.
+///
+/// Rota antiga (run_graph_*, nao usada pelos mapas): um grafo em camadas gerado
+/// a partir da seed. Cada bioma tem CFG.run.layers_per_biome camadas: a primeira
+/// e a ultima tem uma sala de combate (entrada e saida do bioma); as do meio
+/// oferecem 2 a 3 opcoes. As conexoes so avancam, entao nao existem ciclos nem
+/// becos sem saida.
 
 function room_kind_label(_kind) {
     switch (_kind) {
@@ -257,171 +263,346 @@ function route_door_label(_from, _to) {
     return _txt;
 }
 
-// ---------------------------------------------------------------- mapas laterais
+// ---------------------------------------------------------------- mapas 2D
 
-/// Gera um mapa largo por bioma. Os trechos de combate reaproveitam os modulos
-/// existentes, emendados lado a lado (cada um deslocado por _offset):
-///   inicio vazio | trechos de meio sorteados | saida | arena do chefe
-/// Total de trechos: CFG.run.sections_per_biome. Tudo usa o gerador da seed da
-/// run, entao a mesma seed reproduz o mesmo corredor.
+/// Gera o mapa de cada bioma: um nivel 2D (scr_level_gen) preenchido com os
+/// modulos de scr_rooms. Tudo usa o gerador da seed da run, entao a mesma seed
+/// reproduz os mesmos mapas.
 function run_maps_build() {
-    var _R = CFG.run;
     var _maps = [];
     var _used = {};
-    var _biome_count = array_length(global.biomes);
     global.run.special_rooms = {};
-
-    for (var _b = 0; _b < _biome_count; _b++) {
-        var _biome = global.biomes[_b];
-
-        // 1) modulos: inicio (sem modulo) + meio + saida + chefe = sections_per_biome
-        var _mid_count = max(1, _R.sections_per_biome - 3);
-        var _selected = [];
-        for (var _i = 0; _i < _mid_count; _i++) {
-            var _sid = run_pick_combat(_biome.bid, "mid", _used);
-            if (is_undefined(_sid)) show_error("Faltam salas intermediarias de combate para " + _biome.name + ".", true);
-            array_push(_selected, _sid);
-            _used[$ _sid] = true;
-        }
-        var _exit_sid = run_pick_combat(_biome.bid, "exit", _used);
-        if (is_undefined(_exit_sid)) show_error("Falta uma sala final de combate para " + _biome.name + ".", true);
-        array_push(_selected, _exit_sid);
-        _used[$ _exit_sid] = true;
-
-        // 2) posicoes: as larguras dos modulos definem o corredor inteiro
-        var _start_x2 = _R.start_width;
-        var _offsets = [];
-        var _offset = _start_x2;
-        for (var _i = 0; _i < array_length(_selected); _i++) {
-            array_push(_offsets, _offset);
-            _offset += stage_get(_selected[_i]).width;
-        }
-        var _boss_def = stage_get(_R.boss_stage);
-        var _boss_x1 = _offset;
-        var _boss_x2 = _offset + _boss_def.width;
-
-        // 3) entradas especiais (antes dos objetos, que desviam delas)
-        var _specials = run_maps_place_specials(_biome, _start_x2, _boss_x1, _used);
-        var _entrance_xs = [];
-        for (var _i = 0; _i < array_length(_specials); _i++) array_push(_entrance_xs, _specials[_i].x);
-
-        // 4) trechos
-        var _sections = [];
-        var _pickups = [];
-        var _props = [];
-
-        // Inicio: so espaco para explorar. Sem ondas, objetos, perigos ou armas.
-        array_push(_sections, {
-            id: 0,
-            kind: "start",
-            sid: "",
-            name: "Inicio",
-            x1: 0,
-            x2: _start_x2,
-            trigger_x: _start_x2,
-            lock_x1: 0,
-            lock_x2: _start_x2,
-            waves: [],
-            state: "cleared",   // nunca dispara encontro
-            wave_index: 0,
-            discovered: true
-        });
-
-        for (var _i = 0; _i < array_length(_selected); _i++) {
-            var _src = stage_get(_selected[_i]);
-            var _ox = _offsets[_i];
-            var _waves = [];
-            for (var _w = 0; _w < array_length(_src.encounter.waves); _w++) {
-                var _wave_src = _src.encounter.waves[_w];
-                var _wave = [];
-                for (var _e = 0; _e < array_length(_wave_src); _e++) {
-                    var _enemy = _wave_src[_e];
-                    array_push(_wave, {
-                        type: enemy_type_variant(_enemy.type, _b),
-                        x: _enemy.x + _ox,
-                        y: _enemy.y,
-                        elite: random(1) < CFG.elite.chance[min(_b, array_length(CFG.elite.chance) - 1)]
-                    });
-                }
-                run_wave_add_extras(_wave, _biome, _b, _ox + _src.encounter.lock_x1, _ox + _src.encounter.lock_x2,
-                    _src.floor_top + 6, _src.floor_bottom - 6);
-                array_push(_waves, _wave);
-            }
-
-            array_push(_sections, {
-                id: array_length(_sections),
-                kind: "combat",
-                sid: _src.sid,
-                name: _src.name,
-                x1: _ox,
-                x2: _ox + _src.width,
-                trigger_x: _ox + _src.encounter.trigger_x,
-                lock_x1: _ox + _src.encounter.lock_x1,
-                lock_x2: _ox + _src.encounter.lock_x2,
-                waves: _waves,
-                state: "pending",
-                wave_index: 0,
-                discovered: false
-            });
-
-            if (variable_struct_exists(_src, "pickups")) {
-                for (var _p = 0; _p < array_length(_src.pickups); _p++) {
-                    var _pickup = _src.pickups[_p];
-                    array_push(_pickups, {
-                        // indice do trecho na chave: um modulo repetido nao divide a arma
-                        key: _src.sid + "_" + string(_i) + "_" + string(_p),
-                        wid: _pickup.wid,
-                        x: _ox + _pickup.x,
-                        y: _pickup.y
-                    });
-                }
-            }
-            // quebraveis e perigo do bioma neste trecho (longe das entradas)
-            var _rolled = props_roll_section(_biome.bid, _ox, _ox + _src.width, _entrance_xs);
-            for (var _p = 0; _p < array_length(_rolled); _p++) array_push(_props, _rolled[_p]);
-        }
-
-        // O chefe usa o mesmo obj_enemy e a mesma ficha da arena final existente,
-        // mas a luta acontece no fim do corredor do proprio bioma.
-        // Cada bioma tem o seu chefe fixo; o ultimo e o chefe final.
-        var _boss_source = _boss_def.encounter.waves[0][0];
-        var _boss_type = _R.biome_bosses[min(_b, array_length(_R.biome_bosses) - 1)];
-        array_push(_sections, {
-            id: array_length(_sections),
-            kind: "boss",
-            sid: _boss_def.sid,
-            name: CFG.enemies[$ _boss_type].name,
-            x1: _boss_x1,
-            x2: _boss_x2,
-            trigger_x: _boss_x1 + _boss_def.encounter.trigger_x,
-            lock_x1: _boss_x1,
-            lock_x2: _boss_x2,
-            waves: [[{ type: _boss_type, x: _boss_x1 + _boss_source.x, y: _boss_source.y, elite: false }]],
-            state: "pending",
-            wave_index: 0,
-            discovered: false
-        });
-
-        var _map = {
-            sid: "map_" + _biome.bid,
-            biome_index: _b,
-            biome: _biome.bid,
-            name: _biome.name,
-            width: _boss_x2,
-            sections: _sections,
-            specials: _specials,
-            pickups: _pickups,
-            pickups_taken: {},
-            ground_weapons: [],
-            props: _props,      // quebraveis e perigos (scr_props)
-            completed: false    // chefe derrotado: a saida a direita fica liberada
-        };
-        array_push(_maps, _map);
+    for (var _b = 0; _b < array_length(global.biomes); _b++) {
+        var _lv = level_build(CFG.level);
+        array_push(_maps, run_level_fill(_lv, global.biomes[_b], _b, _used));
     }
-
     global.run.maps = _maps;
     run_maps_define_stages();
     return _maps;
+}
+
+/// Transforma o nivel gerado no mapa jogavel do bioma: posicao de cada chunk no
+/// mundo, corredores, escadas, portas, ondas, armas e objetos. Os indices de
+/// chunks e links sao os mesmos do nivel gerado (scr_level descreve o formato).
+function run_level_fill(_lv, _biome, _b, _used) {
+    var _L = CFG.level;
+    var _W = _L.cell_w;
+    var _H = _L.band_h;
+    var _sid = "map_" + _biome.bid;
+
+    // so as linhas usadas viram faixas do mundo; a mais alta e a faixa 0
+    var _top = 0;
+    var _bottom = 0;
+    for (var _i = 0; _i < array_length(_lv.chunks); _i++) {
+        var _src = _lv.chunks[_i];
+        if (!_src.on_grid) continue;
+        _top = min(_top, _src.row);
+        _bottom = max(_bottom, _src.row);
+    }
+    var _bands = _bottom - _top + 1;
+    var _grid = array_create(_bands, 0);
+    for (var _r = 0; _r < _bands; _r++) _grid[_r] = array_create(_lv.cols, -1);
+
+    // 1) geometria de cada chunk (as salas interiores herdam a da porta)
+    var _chunks = [];
+    for (var _i = 0; _i < array_length(_lv.chunks); _i++) {
+        var _src = _lv.chunks[_i];
+        var _band = _src.row - _top;
+        var _x1 = _src.col * _W;
+        var _oy = _band * _H;
+        var _links = [];
+        for (var _k = 0; _k < array_length(_src.links); _k++) array_push(_links, _src.links[_k]);
+        array_push(_chunks, {
+            index: _i,
+            type: _src.type,
+            cat: chunk_type(_src.type).cat,
+            on_grid: _src.on_grid,
+            row: _src.row,
+            col: _src.col,
+            band: _band,
+            x1: _x1,
+            x2: _x1 + _W,
+            oy: _oy,
+            floor_top: _oy + 178,
+            floor_bottom: _oy + 258,
+            corridor: _src.corridor,
+            links: _links,
+            state: "cleared",       // combates: pending -> active -> cleared
+            wave_index: 0,
+            waves: [],
+            trigger_x1: 0,          // o combate dispara com o jogador entre estes x
+            trigger_x2: 0,
+            lock_x1: _x1,
+            lock_x2: _x1 + _W,
+            sid: "",                // modulo das ondas ou sala interior
+            name: "",
+            room_kind: _src.room_kind,
+            door: -1,               // corredor: indice da sala interior da porta
+            door_x: 0,
+            reward_key: "",         // horda: bau que aparece depois de limpar
+            discovered: false,      // o jogador ja passou por aqui
+            seen: false             // aparece no minimapa (com "?" enquanto nao visitado)
+        });
+        if (_src.on_grid) _grid[_band][_src.col] = _i;
+    }
+
+    // 2) links; escadas ganham o pe e o topo no mundo, portas a posicao no cenario
+    var _links_out = [];
+    var _stairs = [];
+    for (var _l = 0; _l < array_length(_lv.links); _l++) {
+        var _src_link = _lv.links[_l];
+        var _link = { index: _l, a: _src_link.a, b: _src_link.b, kind: _src_link.kind };
+        if (_src_link.kind == "stairs") {
+            var _low = _chunks[_src_link.a];
+            var _up = _chunks[_src_link.b];
+            var _rise = (irandom(1) == 0) ? -1 : 1; // sobe para a esquerda ou para a direita
+            var _run = stage_stairs_run(_biome.bid); // segue os degraus da arte do bioma
+            var _foot = _low.x1 + _W * 0.5 - _rise * _run * 0.5 + irandom_range(-140, 140);
+            // pe e topo longe das bordas da celula
+            _foot = clamp(_foot, _low.x1 + 110 + max(0, -_rise * _run), _low.x2 - 110 - max(0, _rise * _run));
+            _link.rise = _rise;
+            _link.x_foot = round(_foot);
+            _link.y_foot = _low.floor_top;
+            _link.x_top = round(_foot) + _rise * _run;
+            _link.y_top = _up.floor_bottom;
+            array_push(_stairs, _l);
+        } else if (_src_link.kind == "door") {
+            var _host = _chunks[_src_link.a];
+            _host.door = _src_link.b;
+            _host.door_x = run_entrance_world_x(_host.col, stage_entrance_img_x(_biome.bid, _chunks[_src_link.b].room_kind), _W);
+        }
+        array_push(_links_out, _link);
+    }
+
+    // 3) conteudo de cada chunk
+    var _pickups = [];
+    var _props = [];
+    for (var _i = 0; _i < array_length(_chunks); _i++) {
+        var _ch = _chunks[_i];
+        var _avoid = (_ch.door >= 0) ? [_ch.door_x] : [];
+        switch (_ch.type) {
+            case "start":
+                _ch.name = "Inicio";
+                break;
+
+            case "combat":
+            case "exit_combat":
+            case "horde":
+                var _mod_sid = run_pick_combat(_biome.bid, (_ch.type == "exit_combat") ? "exit" : "mid", _used);
+                if (is_undefined(_mod_sid)) show_error("Faltam salas de combate para " + _biome.name + ".", true);
+                _used[$ _mod_sid] = true;
+                var _mod = stage_get(_mod_sid);
+                _ch.sid = _mod_sid;
+                _ch.name = _mod.name;
+                _ch.state = "pending";
+                _ch.waves = run_level_waves(_mod, _biome, _b, _ch);
+                _ch.trigger_x1 = _ch.x1 + _L.combat_inset;
+                _ch.trigger_x2 = _ch.x2 - _L.combat_inset;
+                if (_ch.type == "horde") {
+                    run_level_horde_extras(_ch, _biome, _b);
+                    _ch.reward_key = "horde_" + _sid + "_" + string(_i);
+                    global.run.special_rooms[$ _ch.reward_key] = { seed: irandom(999999), used: false, stock: undefined };
+                }
+                for (var _p = 0; _p < array_length(_mod.pickups); _p++) {
+                    var _pk = _mod.pickups[_p];
+                    array_push(_pickups, {
+                        // indice do chunk na chave: um modulo repetido nao divide a arma
+                        key: _mod_sid + "_" + string(_i) + "_" + string(_p),
+                        wid: _pk.wid,
+                        x: _ch.x1 + clamp(_pk.x, 80, _W - 80),
+                        y: _ch.oy + _pk.y
+                    });
+                }
+                run_level_add_props(_props, _biome.bid, _ch, _avoid);
+                break;
+
+            case "boss":
+                // mesmo obj_enemy e mesma ficha da arena final; cada bioma tem o seu chefe
+                var _boss_def = stage_get(CFG.run.boss_stage);
+                var _boss_src = _boss_def.encounter.waves[0][0];
+                var _boss_type = CFG.run.biome_bosses[min(_b, array_length(CFG.run.biome_bosses) - 1)];
+                _ch.sid = _boss_def.sid;
+                _ch.name = CFG.enemies[$ _boss_type].name;
+                _ch.state = "pending";
+                _ch.waves = [[{
+                    type: _boss_type,
+                    x: _ch.x1 + round(_boss_src.x * _W / _boss_def.width),
+                    y: _ch.oy + _boss_src.y,
+                    elite: false
+                }]];
+                _ch.trigger_x1 = _ch.x1 + _boss_def.encounter.trigger_x;
+                _ch.trigger_x2 = _ch.x2;
+                break;
+
+            case "corridor":
+                // corredor livre: so parte deles tem quebraveis e perigo
+                if (random(1) < _L.corridor_props_chance) run_level_add_props(_props, _biome.bid, _ch, _avoid);
+                break;
+
+            case "dead_end":
+                run_level_add_props(_props, _biome.bid, _ch, _avoid);
+                // beco sem porta: uma arma esquecida no fundo (os quebraveis dao moedas e comida)
+                if (_ch.door < 0) {
+                    var _closed = -level_open_side(_lv, _i);
+                    array_push(_pickups, {
+                        key: "cache_" + _sid + "_" + string(_i),
+                        wid: (irandom(1) == 0) ? "w_pipe" : "w_bat",
+                        x: (_closed > 0) ? _ch.x2 - 150 : _ch.x1 + 150,
+                        y: _ch.oy + 236
+                    });
+                }
+                break;
+
+            case "interior":
+                // "challenge" usa os modulos de sala "event"
+                var _module_kind = (_ch.room_kind == "challenge") ? "event" : _ch.room_kind;
+                var _target = room_pick_fallback(_biome.bid, _module_kind, "mid", _used);
+                if (is_undefined(_target)) show_error("Falta a sala opcional " + _ch.room_kind + " para " + _biome.name + ".", true);
+                _used[$ _target] = true;
+                global.run.special_rooms[$ _target] = { seed: irandom(999999), used: false, stock: undefined };
+                _ch.sid = _target;
+                _ch.name = stage_get(_target).name;
+                break;
+        }
+    }
+
+    // 4) corredores no mundo (limites de movimento, camera e cenario)
+    var _cors = [];
+    for (var _q = 0; _q < array_length(_lv.corridors); _q++) {
+        var _c = _lv.corridors[_q];
+        var _cband = _c.row - _top;
+        var _ids = [];
+        for (var _k = 0; _k < array_length(_c.chunks); _k++) array_push(_ids, _c.chunks[_k]);
+        array_push(_cors, {
+            index: _q,
+            row: _c.row,
+            band: _cband,
+            c1: _c.c1,
+            c2: _c.c2,
+            x1: _c.c1 * _W,
+            x2: (_c.c2 + 1) * _W,
+            oy: _cband * _H,
+            floor_top: _cband * _H + 178,
+            floor_bottom: _cband * _H + 258,
+            chunks: _ids,
+            has_boss: array_contains(_ids, _lv.boss),
+            // paredes nas pontas (a ponta direita do corredor do chefe e a saida do bioma)
+            cap_left: true,
+            cap_right: !array_contains(_ids, _lv.boss)
+        });
+    }
+    // porta pintada rente a ponta de um corredor (descanso do esgoto, por exemplo):
+    // essa ponta fica sem parede para a porta continuar alcancavel
+    var _zone = _L.cap_margin + 30;
+    for (var _i = 0; _i < array_length(_chunks); _i++) {
+        var _ch = _chunks[_i];
+        if (!_ch.on_grid || _ch.door < 0) continue;
+        var _cor = _cors[_ch.corridor];
+        if (_ch.col == _cor.c1 && _ch.door_x < _cor.x1 + _zone) _cor.cap_left = false;
+        if (_ch.col == _cor.c2 && _ch.door_x > _cor.x2 - _zone) _cor.cap_right = false;
+    }
+
+    var _map = {
+        version: 2,             // formato 2D (runs salvas antes disso sao descartadas)
+        sid: _sid,
+        biome_index: _b,
+        biome: _biome.bid,
+        name: _biome.name,
+        cell_w: _W,
+        band_h: _H,
+        cols: _lv.cols,
+        bands: _bands,
+        row_top: _top,
+        width: _lv.cols * _W,
+        height: _bands * _H,
+        grid: _grid,
+        chunks: _chunks,
+        links: _links_out,
+        stairs: _stairs,        // indices dos links de escada
+        corridors: _cors,
+        start: _lv.start,
+        boss: _lv.boss,
+        pickups: _pickups,
+        pickups_taken: {},
+        ground_weapons: [],
+        props: _props,          // quebraveis e perigos (scr_props)
+        completed: false        // chefe derrotado: a saida a direita fica liberada
+    };
+    // o corredor principal aparece inteiro no minimapa desde o inicio, sem o conteudo
+    for (var _i = 0; _i < array_length(_chunks); _i++) {
+        if (_chunks[_i].on_grid && _chunks[_i].row == 0) _chunks[_i].seen = true;
+    }
+    level_discover(_map, _lv.start);
+    return _map;
+}
+
+/// Ondas de um modulo de combate para o chunk: tipos e elites sorteados mais os
+/// inimigos extras de CFG.encounter.enemy_count_mult. No corredor os inimigos
+/// entram por fora da camera; a posicao do modulo so fica de reserva.
+function run_level_waves(_mod, _biome, _b, _ch) {
+    var _elite_chance = CFG.elite.chance[min(_b, array_length(CFG.elite.chance) - 1)];
+    var _waves = [];
+    for (var _w = 0; _w < array_length(_mod.encounter.waves); _w++) {
+        var _src = _mod.encounter.waves[_w];
+        var _wave = [];
+        for (var _e = 0; _e < array_length(_src); _e++) {
+            array_push(_wave, {
+                type: enemy_type_variant(_src[_e].type, _b),
+                x: _ch.x1 + clamp(_src[_e].x, 60, _ch.x2 - _ch.x1 - 60),
+                y: _ch.oy + _src[_e].y,
+                elite: random(1) < _elite_chance
+            });
+        }
+        run_wave_add_extras(_wave, _biome, _b, _ch.x1, _ch.x2, _ch.floor_top + 6, _ch.floor_bottom - 6);
+        array_push(_waves, _wave);
+    }
+    return _waves;
+}
+
+/// Horda (ponta de ramo): a ultima onda ganha CFG.level.horde_extra_enemies
+/// inimigos do bioma. Vencer libera um bau (run_level_spawn_reward).
+function run_level_horde_extras(_ch, _biome, _b) {
+    var _last = _ch.waves[array_length(_ch.waves) - 1];
+    var _pool = _biome.enemy_pool;
+    var _elite_chance = CFG.elite.chance[min(_b, array_length(CFG.elite.chance) - 1)];
+    for (var _i = 0; _i < CFG.level.horde_extra_enemies; _i++) {
+        array_push(_last, {
+            type: enemy_type_variant(_pool[irandom(array_length(_pool) - 1)], _b),
+            x: irandom_range(_ch.x1 + 60, _ch.x2 - 60),
+            y: irandom_range(_ch.floor_top + 6, _ch.floor_bottom - 6),
+            elite: random(1) < _elite_chance
+        });
+    }
+}
+
+function run_level_add_props(_props, _bid, _ch, _avoid) {
+    var _rolled = props_roll_section(_bid, _ch.x1, _ch.x2, _avoid, _ch.oy);
+    for (var _p = 0; _p < array_length(_rolled); _p++) array_push(_props, _rolled[_p]);
+}
+
+/// Bau da horda: aparece no fundo do beco depois que a horda cai e volta a
+/// aparecer enquanto nao for aberto.
+function run_level_spawn_reward(_map, _ch) {
+    if (_ch.reward_key == "") return;
+    var _state = run_special_state(_ch.reward_key);
+    if (_state.used) return;
+    var _closed = -level_open_side(_map, _ch.index);
+    instance_create_depth((_closed > 0) ? _ch.x2 - 140 : _ch.x1 + 140, _ch.floor_top + 12, 0, obj_interact, {
+        kind: "chest",
+        seed: _state.seed,
+        used: false,
+        persistence_key: _ch.reward_key
+    });
+}
+
+/// Runs salvas antes dos mapas 2D nao podem continuar: o formato do mapa mudou.
+function run_save_compatible(_run) {
+    if (!is_struct(_run) || !variable_struct_exists(_run, "maps") || !is_array(_run.maps) || array_length(_run.maps) == 0) return false;
+    for (var _i = 0; _i < array_length(_run.maps); _i++) {
+        var _m = _run.maps[_i];
+        if (!is_struct(_m) || !variable_struct_exists(_m, "version") || _m.version != 2) return false;
+    }
+    return true;
 }
 
 /// Acrescenta a uma onda os inimigos extras de CFG.encounter.enemy_count_mult:
@@ -456,102 +637,6 @@ function run_entrance_world_x(_tile, _img_x, _tile_w) {
     return _tile * _tile_w + ((_tile mod 2 == 0) ? _img_x : _tile_w - _img_x);
 }
 
-/// Sorteia as entradas especiais de um corredor.
-/// Obrigatorias: CFG.run.special_required (loja, tesouro, desafio). Descanso
-/// entra com CFG.run.rest_chance. Cada entrada fica num tile proprio do cenario,
-/// depois do trecho inicial e antes da arena do chefe (com special_edge_margin
-/// de folga) e a pelo menos special_min_gap de qualquer outra.
-/// O tipo "challenge" usa os modulos de sala "event".
-function run_maps_place_specials(_biome, _start_x2, _boss_x1, _used) {
-    var _R = CFG.run;
-    var _tile_w = sprite_get_width(stage_backdrop_info(_biome.bid).sprite);
-
-    var _kinds = [];
-    for (var _i = 0; _i < array_length(_R.special_required); _i++) array_push(_kinds, _R.special_required[_i]);
-    array_shuffle_ext(_kinds);
-    // o sorteio do descanso acontece sempre, para a sequencia da seed nao variar
-    if (random(1) < _R.rest_chance) array_push(_kinds, "rest");
-
-    var _lo = _start_x2 + _R.special_edge_margin;
-    var _hi = _boss_x1 - _R.special_edge_margin;
-    var _tiles = [];
-    for (var _t = 0; _t * _tile_w < _boss_x1; _t++) array_push(_tiles, _t);
-
-    // Varias ordens de tiles respeitando a distancia minima; se nenhuma servir,
-    // uma ultima passada so evita o mesmo tile (garante as obrigatorias).
-    var _xs = undefined;
-    for (var _try = 0; _try < _R.special_place_attempts; _try++) {
-        array_shuffle_ext(_tiles);
-        var _attempt = run_specials_fit(_biome.bid, _kinds, _tiles, _tile_w, _lo, _hi, _R.special_min_gap);
-        var _all = true;
-        for (var _k = 0; _k < array_length(_attempt); _k++) if (_attempt[_k] < 0) _all = false;
-        if (_all) {
-            _xs = _attempt;
-            break;
-        }
-    }
-    if (is_undefined(_xs)) _xs = run_specials_fit(_biome.bid, _kinds, _tiles, _tile_w, _lo, _hi, 0);
-
-    var _specials = [];
-    for (var _k = 0; _k < array_length(_kinds); _k++) {
-        var _kind = _kinds[_k];
-        var _x = _xs[_k];
-        if (_x < 0) {
-            if (_kind == "rest") continue;
-            show_error("Corredor curto demais para a entrada " + _kind + " em " + _biome.name + ".", true);
-        }
-
-        var _module_kind = (_kind == "challenge") ? "event" : _kind;
-        var _target_sid = room_pick_fallback(_biome.bid, _module_kind, "mid", _used);
-        if (is_undefined(_target_sid)) show_error("Falta a sala opcional " + _kind + " para " + _biome.name + ".", true);
-        _used[$ _target_sid] = true;
-        global.run.special_rooms[$ _target_sid] = {
-            seed: irandom(999999),
-            used: false,
-            stock: undefined
-        };
-        array_push(_specials, {
-            kind: _kind,
-            room_kind: _kind,
-            label: run_special_label(_kind),
-            target_sid: _target_sid,
-            x: _x,
-            y: 178,
-            requires_clear: true
-        });
-    }
-    return _specials;
-}
-
-/// Tenta colocar cada tipo de _kinds num tile de _tiles (na ordem dada), entre
-/// _lo e _hi e a pelo menos _gap das entradas ja colocadas. Retorna o x de cada
-/// tipo, ou -1 para o que nao coube.
-function run_specials_fit(_bid, _kinds, _tiles, _tile_w, _lo, _hi, _gap) {
-    var _xs = array_create(array_length(_kinds), -1);
-    var _taken = {};
-    for (var _k = 0; _k < array_length(_kinds); _k++) {
-        var _img_x = stage_entrance_img_x(_bid, _kinds[_k]);
-        for (var _t = 0; _t < array_length(_tiles); _t++) {
-            var _tile = _tiles[_t];
-            if (variable_struct_exists(_taken, string(_tile))) continue;
-            var _wx = run_entrance_world_x(_tile, _img_x, _tile_w);
-            if (_wx < _lo || _wx > _hi) continue;
-            var _ok = true;
-            for (var _j = 0; _j < _k; _j++) {
-                if (_xs[_j] >= 0 && abs(_xs[_j] - _wx) < _gap) {
-                    _ok = false;
-                    break;
-                }
-            }
-            if (!_ok) continue;
-            _xs[_k] = _wx;
-            _taken[$ string(_tile)] = true;
-            break;
-        }
-    }
-    return _xs;
-}
-
 function run_special_label(_kind) {
     switch (_kind) {
         case "reward":    return "TESOURO";
@@ -569,8 +654,7 @@ function run_maps_define_stages() {
     for (var _b = 0; _b < array_length(_maps); _b++) {
         var _map = _maps[_b];
         var _biome = biome_get(_map.biome);
-        if (!variable_struct_exists(_map, "props")) _map.props = [];
-        run_map_migrate_discovery(_map, _b);
+        var _start = _map.chunks[_map.start];
         stage_define({
             sid: _map.sid,
             name: _biome.name,
@@ -579,9 +663,11 @@ function run_maps_define_stages() {
             map_index: _b,
             room_asset: RM_STAGE,
             width: _map.width,
+            height: _map.height,
+            // chao dentro de cada faixa; em jogo vale stage_floor_top()/bottom()
             floor_top: 178,
             floor_bottom: 258,
-            player_spawn: { x: 60, y: 222 },
+            player_spawn: { x: _start.x1 + 60, y: _start.oy + 222 },
             doors: [],
             enemies: [],
             decor: _b + 1,
@@ -617,15 +703,14 @@ function run_map_write(_map_index, _map) {
     global.run.maps[_map_index] = _map;
 }
 
-function run_map_mark_section(_map_index, _section_index, _state, _wave_index = undefined) {
+/// Estado do combate de um chunk (pending, active, cleared) e a onda atual.
+function run_map_mark_chunk(_map_index, _cx, _state, _wave_index = undefined) {
     if (_map_index < 0 || _map_index >= array_length(global.run.maps)) return;
     var _map = global.run.maps[_map_index];
-    if (_section_index < 0 || _section_index >= array_length(_map.sections)) return;
-    var _section = _map.sections[_section_index];
-    _section.state = _state;
-    if (!is_undefined(_wave_index)) _section.wave_index = _wave_index;
-    _map.sections[_section_index] = _section;
-    run_map_write(_map_index, _map);
+    if (_cx < 0 || _cx >= array_length(_map.chunks)) return;
+    var _ch = _map.chunks[_cx];
+    _ch.state = _state;
+    if (!is_undefined(_wave_index)) _ch.wave_index = _wave_index;
 }
 
 function run_map_save_pickup(_map_index, _key) {
@@ -726,47 +811,5 @@ function run_map_leave() {
         stage_goto(global.run.maps[_next].sid);
     } else {
         game_victory();
-    }
-}
-
-// ------------------------------------------------------------ exploracao
-
-/// Um trecho e "descoberto" quando o jogador entra nele. Descoberto nao quer
-/// dizer concluido: o estado do combate continua em section.state.
-function run_section_discovered(_section) {
-    return !variable_struct_exists(_section, "discovered") || _section.discovered;
-}
-
-/// Marca como descobertos os trechos ate a posicao do jogador. O valor vai para
-/// o save junto com o mapa (no proximo ponto de controle).
-function run_map_update_discovery(_map_index, _player_x) {
-    var _map = global.run.maps[_map_index];
-    for (var _i = 0; _i < array_length(_map.sections); _i++) {
-        var _s = _map.sections[_i];
-        if (_player_x >= _s.x1 && !_s.discovered) _s.discovered = true;
-    }
-}
-
-/// O trecho que contem _x ja foi descoberto (entradas e objetos so aparecem no
-/// mapa depois disso).
-function run_map_x_discovered(_map, _x) {
-    for (var _i = 0; _i < array_length(_map.sections); _i++) {
-        var _s = _map.sections[_i];
-        if (_x >= _s.x1 && _x < _s.x2) return run_section_discovered(_s);
-    }
-    return false;
-}
-
-/// Saves anteriores a exploracao nao tem section.discovered. Reconstroi o valor
-/// sem revelar nada a mais: biomas ja passados ficam descobertos; no atual, os
-/// trechos que ja sairam de "pending" ou que estao antes da posicao salva.
-function run_map_migrate_discovery(_map, _map_index) {
-    var _ctx = global.run.return_context;
-    var _here_x = (!is_undefined(_ctx) && _ctx.stage_sid == _map.sid) ? _ctx.x : 0;
-    for (var _i = 0; _i < array_length(_map.sections); _i++) {
-        var _s = _map.sections[_i];
-        if (variable_struct_exists(_s, "discovered")) continue;
-        _s.discovered = (_map_index < global.run.map_index) || _s.state != "pending"
-            || _s.kind == "start" || (_map_index == global.run.map_index && _s.x1 <= _here_x);
     }
 }

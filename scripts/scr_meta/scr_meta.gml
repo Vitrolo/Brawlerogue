@@ -247,7 +247,9 @@ function save_slot_infos() {
         var _l2 = "No lobby";
         if (is_struct(_d.run) && _d.run.active) {
             var _mi = clamp(_d.run.map_index, 0, array_length(global.biomes) - 1);
-            _l2 = "Run em andamento: " + global.biomes[_mi].name;
+            _l2 = run_save_compatible(_d.run)
+                ? "Run em andamento: " + global.biomes[_mi].name
+                : "Run antiga (mapa no formato anterior): sera descartada";
         }
         array_push(_infos, { used: true, line1: _l1, line2: _l2 });
     }
@@ -271,10 +273,15 @@ function save_continue(_slot) {
     global.meta.slot = _slot;
     run_reset();
     if (is_struct(_d.run) && _d.run.active) {
-        run_resume(_d.run);
-    } else {
-        stage_goto("lobby");
+        if (run_save_compatible(_d.run)) {
+            run_resume(_d.run);
+            return true;
+        }
+        // run salva antes dos mapas 2D: o progresso permanente fica, a run nao
+        save_write();
+        toast_show("Run antiga descartada: o formato dos mapas mudou.");
     }
+    stage_goto("lobby");
     return true;
 }
 

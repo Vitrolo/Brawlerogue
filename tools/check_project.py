@@ -19,7 +19,7 @@ PREFIXES = (
     "interact_", "hitbox_", "combat_", "vfx_", "hud_", "game_", "mod_", "mods_", "reward_",
     "weapon_", "toast_", "room_", "rooms_", "biome_", "input_", "actor_", "attack_",
     "config_", "chars_", "synergy_", "results_", "effect_", "option_", "shop_", "event_",
-    "time_", "struct_merge", "decor_", "route_", "enemies_",
+    "time_", "struct_merge", "decor_", "route_", "enemies_", "level_", "chunk_", "backdrop_",
 )
 # funcoes nativas do GameMaker que comecam com um dos prefixos acima
 BUILTIN = {

@@ -15,6 +15,7 @@ function game_init() {
     gpu_set_texfilter(false);
 
     config_init();
+    chunk_types_init(); // tipos de chunk dos mapas 2D (scr_level_gen)
     meta_init();
     fx_init();
     mods_init();
@@ -50,6 +51,7 @@ function game_hitstop(_frames) {
 /// Begin Step do obj_game.
 function game_begin_step() {
     input_update();
+    level_debug_update(); // F2: desenho de depuracao do mapa 2D
     global.prompt = "";
     if (ui_update()) return; // menu, pausa ou resultados: o jogo nao anda
     if (global.hitstop > 0) global.hitstop--;

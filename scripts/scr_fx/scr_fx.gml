@@ -134,12 +134,13 @@ function fx_draw_gui() {
     var _sx = CFG.view.gui_w / VIEW_W;
     var _sy = CFG.view.gui_h / VIEW_H;
     var _camx = round(global.cam.x);
+    var _camy = round(global.cam.y);
     draw_set_halign(fa_center);
     draw_set_valign(fa_middle);
     for (var _i = 0; _i < array_length(_n); _i++) {
         var _f = _n[_i];
         var _gx = (_f.x - _camx) * _sx;
-        var _gy = _f.y * _sy;
+        var _gy = (_f.y - _camy) * _sy;
         draw_set_alpha(min(1, 3 * _f.life / _f.life_max));
         draw_set_colour(c_black);
         draw_text(_gx + 1, _gy + 1, _f.text);

@@ -19,14 +19,15 @@ function prop_is_breakable(_kind) {
     return _kind == "barrel" || _kind == "crate" || _kind == "bin";
 }
 
-/// Sorteia os objetos de um trecho de combate. Retorna a lista de { kind, x, y, alive }.
+/// Sorteia os objetos de um chunk do mapa. Retorna a lista de { kind, x, y, alive }.
 /// _avoid_x: posicoes das entradas especiais; um objeto sorteado na frente de uma
 /// delas e empurrado para a parte de baixo do chao, sem bloquear a porta.
-function props_roll_section(_biome, _x1, _x2, _avoid_x = []) {
+/// _oy: topo da faixa do chunk no mundo (mapas 2D).
+function props_roll_section(_biome, _x1, _x2, _avoid_x = [], _oy = 0) {
     var _P = CFG.props;
     var _out = [];
-    var _ft = 178;
-    var _fb = 258;
+    var _ft = _oy + 178;
+    var _fb = _oy + 258;
 
     var _kinds = ["barrel", "crate"];
     if (_biome == "streets") _kinds = ["bin", "crate"];
@@ -90,7 +91,7 @@ function prop_create() {
     car_x = 0;
     broken = false;     // claraboia ja atravessada
     // perigos ficam no chao, atras de todos os atores
-    depth = breakable ? -y : -global.stage.floor_top + 6;
+    depth = breakable ? -y : -stage_floor_top_at(y) + 6;
 }
 
 /// Golpe do jogador em um quebravel. Roda no escopo do obj_prop.
@@ -206,8 +207,8 @@ function prop_step() {
 function prop_car_step() {
     var _P = CFG.props;
     var _cam = global.cam.x;
-    // so funciona quando o trecho dele esta na tela
-    var _near = abs((_cam + VIEW_W * 0.5) - x) < 420;
+    // so funciona quando o trecho dele esta na tela (na mesma faixa, nos mapas 2D)
+    var _near = abs((_cam + VIEW_W * 0.5) - x) < 420 && abs((global.cam.y + VIEW_H * 0.5) - y) < VIEW_H * 0.6;
 
     switch (phase) {
         case "wait":

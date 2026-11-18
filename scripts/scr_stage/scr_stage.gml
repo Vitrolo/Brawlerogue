@@ -60,10 +60,10 @@ function stage_build() {
     var _def = stage_get(global.stage_next_id);
     global.stage = _def;
     fx_clear();
-    // RM_STAGE e apenas a casca do mapa; seus limites reais acompanham o trecho.
-    // Sem isso, o corredor (maior que o room do editor) pode parar de desenhar cedo.
+    // RM_STAGE e apenas a casca; seus limites reais acompanham o mapa ou a sala.
+    // Sem isso, o mapa (maior que o room do editor) pode parar de desenhar cedo.
     room_width = _def.width;
-    room_height = VIEW_H;
+    room_height = variable_struct_exists(_def, "height") ? _def.height : VIEW_H;
     global.stage_rt = {
         lock_active: false,   // arena travada durante uma horda
         lock_x1: 0,
@@ -73,7 +73,8 @@ function stage_build() {
         enc_timer: 0,
         go_timer: 0,
         map_index: (_def.kind == "main_map") ? _def.map_index : -1,
-        section_index: -1,
+        chunk_index: -1,      // mapas 2D: chunk do combate em andamento
+        corridor: -1,         // mapas 2D: corredor em que o jogador esta
         title: _def.name,
         subtitle: "",
         banner_timer: 0,
@@ -101,21 +102,41 @@ function stage_build() {
         _spawn_y = global.run.return_context.y;
         _spawn_facing = global.run.return_context.facing;
     }
+    if (_def.kind == "main_map") {
+        // o corredor do jogador define limites, camera e chao; um retorno que
+        // caia fora dos corredores volta ao inicio do mapa
+        var _spawn_map = global.run.maps[_def.map_index];
+        var _cor = level_corridor_at(_spawn_map, _spawn_x, _spawn_y);
+        if (_cor < 0) {
+            _spawn_x = _def.player_spawn.x;
+            _spawn_y = _def.player_spawn.y;
+            _cor = level_corridor_at(_spawn_map, _spawn_x, _spawn_y);
+        }
+        stage_set_corridor(_cor);
+    }
     var _player = instance_create_depth(_spawn_x, _spawn_y, 0, obj_player);
     _player.facing = _spawn_facing;
     if (_has_return) global.run.return_context = undefined;
 
     if (_def.kind == "main_map") {
         var _map = global.run.maps[_def.map_index];
-        for (var _i = 0; _i < array_length(_map.specials); _i++) {
-            var _special = _map.specials[_i];
-            instance_create_depth(_special.x, _def.floor_top, 0, obj_door, {
-                kind: "special",
-                label: _special.label,
-                requires_clear: _special.requires_clear,
-                room_kind: _special.room_kind,
-                target_sid: _special.target_sid
-            });
+        for (var _i = 0; _i < array_length(_map.chunks); _i++) {
+            var _ch = _map.chunks[_i];
+            // combate interrompido (run carregada ou sala reconstruida) volta a esperar
+            if (_ch.state == "active") _ch.state = "pending";
+            // porta de sala interior, ja pintada no tile do cenario
+            if (_ch.door >= 0) {
+                var _room = _map.chunks[_ch.door];
+                instance_create_depth(_ch.door_x, _ch.floor_top, 0, obj_door, {
+                    kind: "special",
+                    label: run_special_label(_room.room_kind),
+                    requires_clear: true,
+                    room_kind: _room.room_kind,
+                    target_sid: _room.sid
+                });
+            }
+            // bau de horda vencida que ainda nao foi aberto
+            if (_ch.type == "horde" && _ch.state == "cleared") run_level_spawn_reward(_map, _ch);
         }
 
         for (var _i = 0; _i < array_length(_map.pickups); _i++) {
@@ -154,7 +175,6 @@ function stage_build() {
 
         var _map_count = array_length(global.run.maps);
         global.stage_rt.title = _def.name + " " + string(_def.map_index + 1) + "/" + string(_map_count);
-        global.stage_rt.subtitle = "CORREDOR PRINCIPAL";
         global.stage_rt.banner_timer = CFG.run.banner_frames;
     } else {
         for (var _i = 0; _i < array_length(_def.doors); _i++) {
@@ -220,32 +240,38 @@ function stage_exits_open() {
 function encounter_wave_count() {
     if (global.stage.kind == "main_map") {
         var _map = global.run.maps[global.stage_rt.map_index];
-        var _section = _map.sections[global.stage_rt.section_index];
-        return array_length(_section.waves);
+        return array_length(_map.chunks[global.stage_rt.chunk_index].waves);
     }
     return array_length(global.stage.encounter.waves);
 }
 
 function encounter_spawn_wave(_index) {
     var _wave;
+    var _ch = undefined;
     if (global.stage.kind == "main_map") {
-        var _map = global.run.maps[global.stage_rt.map_index];
-        var _section = _map.sections[global.stage_rt.section_index];
-        _wave = _section.waves[_index];
+        _ch = global.run.maps[global.stage_rt.map_index].chunks[global.stage_rt.chunk_index];
+        _wave = _ch.waves[_index];
     } else {
         _wave = global.stage.encounter.waves[_index];
     }
     var _n = min(array_length(_wave), CFG.encounter.max_wave_size);
-    var _offscreen = global.stage.kind == "main_map"
-        && global.run.maps[global.stage_rt.map_index].sections[global.stage_rt.section_index].kind == "combat";
-    var _sec = _offscreen ? global.run.maps[global.stage_rt.map_index].sections[global.stage_rt.section_index] : undefined;
+    // nos mapas os inimigos comuns entram por fora da camera, nunca de dentro de
+    // uma parede do corredor; o chefe nasce no lugar dele
+    var _offscreen = !is_undefined(_ch) && _ch.type != "boss";
+    var _lo = 0;
+    var _hi = 0;
+    if (_offscreen) {
+        var _cor = stage_corridor();
+        var _reach = CFG.encounter.offscreen_margin + CFG.encounter.offscreen_jitter;
+        _lo = max(_cor.x1 + CFG.level.spawn_wall_margin, _ch.x1 - _reach);
+        _hi = min(_cor.x2 - CFG.level.spawn_wall_margin, _ch.x2 + _reach);
+    }
     for (var _i = 0; _i < _n; _i++) {
         var _e = _wave[_i];
         var _elite = variable_struct_exists(_e, "elite") && _e.elite;
         if (_offscreen) {
             // tipo e elite da onda; o ponto de entrada e sorteado fora da camera
-            enemy_spawn_offscreen(_e.type, _elite, _sec.x1 - CFG.encounter.offscreen_margin,
-                _sec.x2 + CFG.encounter.offscreen_margin);
+            enemy_spawn_offscreen(_e.type, _elite, _lo, _hi);
         } else {
             instance_create_depth(_e.x, _e.y, 0, obj_enemy, { enemy_type: _e.type, elite: _elite });
         }
@@ -272,7 +298,9 @@ function enemy_spawn_offscreen(_type, _elite, _lo, _hi) {
         _side = 1 - _side;
         _x = (_side == 0) ? _cam_l - _off : _cam_r + _off;
     }
-    var _y = irandom_range(_s.floor_top + 6, _s.floor_bottom - 6);
+    // sem espaco dos dois lados (corredor curto): entra pela borda possivel
+    _x = clamp(_x, _lo, _hi);
+    var _y = irandom_range(stage_floor_top() + 6, stage_floor_bottom() - 6);
 
     // destino aleatorio dentro da tela, na parte do lado de entrada
     var _reach = VIEW_W * _E.enter_reach;
@@ -341,15 +369,21 @@ function encounter_update() {
     }
 }
 
+/// Encontros dos mapas 2D. Cada chunk de combate (combate, saida, horda, chefe)
+/// dispara quando o jogador esta dentro dele, entre trigger_x1 e trigger_x2, em
+/// qualquer direcao: os ramos podem ser percorridos da direita para a esquerda.
 function encounter_update_map() {
     var _rt = global.stage_rt;
     if (_rt.go_timer > 0) _rt.go_timer--;
+    var _map = global.run.maps[_rt.map_index];
 
     // exploracao e saida do bioma (nao interferem nos encontros abaixo)
     var _pl = instance_find(obj_player, 0);
     if (_pl != noone) {
-        run_map_update_discovery(_rt.map_index, _pl.x);
-        if (!_rt.leaving && run_map_exit_open() && _pl.x >= global.stage.width + CFG.run.boss_exit_trigger) {
+        run_map_update_discovery(_rt.map_index, _pl.x, _pl.y);
+        var _boss = _map.chunks[_map.boss];
+        if (!_rt.leaving && run_map_exit_open() && _rt.corridor == _boss.corridor
+            && _pl.x >= _boss.x2 + CFG.run.boss_exit_trigger) {
             _rt.leaving = true;
             run_map_leave();
             return;
@@ -357,23 +391,18 @@ function encounter_update_map() {
     }
 
     if (!_rt.lock_active) {
-        var _map = global.run.maps[_rt.map_index];
-        var _player = instance_find(obj_player, 0);
-        if (_player == noone) return;
-
-        // Dispara apenas o primeiro setor ainda pendente cuja entrada foi cruzada.
-        for (var _i = 0; _i < array_length(_map.sections); _i++) {
-            var _section = _map.sections[_i];
-            if (_section.state != "pending" || _player.x < _section.trigger_x) continue;
-            _rt.section_index = _i;
-            _rt.enc_wave = _section.wave_index;
-            _rt.enc_timer = 0;
-            _rt.enc_state = ENC.ACTIVE;
-            cam_lock(_section.lock_x1, _section.lock_x2);
-            run_map_mark_section(_rt.map_index, _i, "active", _rt.enc_wave);
-            encounter_spawn_wave(_rt.enc_wave);
-            return;
-        }
+        if (_pl == noone || _pl.state == PS.CLIMB) return;
+        var _cx = level_chunk_at(_map, _pl.x, _pl.y);
+        if (_cx < 0) return;
+        var _ch = _map.chunks[_cx];
+        if (_ch.state != "pending" || _pl.x < _ch.trigger_x1 || _pl.x > _ch.trigger_x2) return;
+        _rt.chunk_index = _cx;
+        _rt.enc_wave = _ch.wave_index;
+        _rt.enc_timer = 0;
+        _rt.enc_state = ENC.ACTIVE;
+        cam_lock(_ch.lock_x1, _ch.lock_x2);
+        run_map_mark_chunk(_rt.map_index, _cx, "active", _rt.enc_wave);
+        encounter_spawn_wave(_rt.enc_wave);
         return;
     }
 
@@ -382,39 +411,48 @@ function encounter_update_map() {
             _rt.enc_timer = CFG.encounter.wave_delay;
             _rt.enc_state = ENC.BETWEEN;
         } else {
-            var _map = global.run.maps[_rt.map_index];
-            var _section = _map.sections[_rt.section_index];
+            var _done = _map.chunks[_rt.chunk_index];
             cam_unlock();
             _rt.enc_state = ENC.CLEARED;
             _rt.go_timer = CFG.encounter.go_frames;
-            run_map_mark_section(_rt.map_index, _rt.section_index, "cleared", _rt.enc_wave);
+            run_map_mark_chunk(_rt.map_index, _rt.chunk_index, "cleared", _rt.enc_wave);
             global.run.sections_cleared += 1;
             // o chefe nao leva mais direto ao proximo bioma: a saida a direita
             // fica liberada e o jogador precisa atravessa-la (run_map_leave)
-            if (_section.kind == "boss") run_map_boss_cleared();
+            if (_done.type == "boss") run_map_boss_cleared();
+            // horda vencida: o bau aparece no fundo do beco
+            if (_done.type == "horde") run_level_spawn_reward(_map, _done);
             run_checkpoint(); // grava o progresso no slot
         }
     } else if (_rt.enc_state == ENC.BETWEEN) {
         _rt.enc_timer--;
         if (_rt.enc_timer <= 0) {
             _rt.enc_wave++;
-            run_map_mark_section(_rt.map_index, _rt.section_index, "active", _rt.enc_wave);
+            run_map_mark_chunk(_rt.map_index, _rt.chunk_index, "active", _rt.enc_wave);
             encounter_spawn_wave(_rt.enc_wave);
             _rt.enc_state = ENC.ACTIVE;
         }
     }
 }
 
-/// Limites horizontais validos para atores (arena travada ou sala inteira).
+/// Limites horizontais validos para atores: arena travada, corredor do jogador
+/// (mapas 2D, parando na frente das paredes de fim de corredor) ou sala inteira.
 function stage_x1() {
     var _rt = global.stage_rt;
-    return (_rt.lock_active ? _rt.lock_x1 : 0) + CFG.stage.edge_margin;
+    var _c = stage_corridor();
+    var _wall = 0;
+    if (!is_undefined(_c)) _wall = _c.x1 + (_c.cap_left ? CFG.level.cap_margin : 0);
+    if (_rt.lock_active) return max(_rt.lock_x1, _wall) + CFG.stage.edge_margin;
+    return _wall + CFG.stage.edge_margin;
 }
 
 function stage_x2() {
     var _rt = global.stage_rt;
-    if (_rt.lock_active) return _rt.lock_x2 - CFG.stage.edge_margin;
-    // chefe derrotado: o jogador pode sair da tela pela direita
-    if (run_map_exit_open()) return global.stage.width + CFG.run.boss_exit_walkout;
-    return global.stage.width - CFG.stage.edge_margin;
+    var _c = stage_corridor();
+    var _wall = global.stage.width;
+    if (!is_undefined(_c)) _wall = _c.x2 - (_c.cap_right ? CFG.level.cap_margin : 0);
+    if (_rt.lock_active) return min(_rt.lock_x2, _wall) - CFG.stage.edge_margin;
+    // chefe derrotado: o jogador pode sair da tela pela direita da arena
+    if (!is_undefined(_c) && _c.has_boss && run_map_exit_open()) return _c.x2 + CFG.run.boss_exit_walkout;
+    return _wall - CFG.stage.edge_margin;
 }

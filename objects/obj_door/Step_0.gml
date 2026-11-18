@@ -5,7 +5,9 @@ near = false;
 var _p = instance_find(obj_player, 0);
 if (_p == noone) exit;
 
-near = abs(_p.x - x) < 20 && _p.y <= global.stage.floor_top + 16 && _p.z <= 0;
+// a porta fica no topo do chao da propria faixa (y); nos mapas 2D o jogador
+// pode estar em outra faixa na mesma coluna
+near = abs(_p.x - x) < 20 && _p.y >= y - 2 && _p.y <= y + 16 && _p.z <= 0;
 if (!near) exit;
 
 if (locked) {

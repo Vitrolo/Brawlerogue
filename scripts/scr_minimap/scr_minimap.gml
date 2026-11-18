@@ -1,20 +1,26 @@
-/// Minimapa do corredor do bioma atual, desenhado no Draw GUI (coordenadas 960x540).
+/// Minimapa do mapa 2D do bioma atual, desenhado no Draw GUI (coordenadas 960x540).
 ///
-/// Canto inferior direito: uma "camera" propria que mostra so os arredores do
-/// jogador (MINIMAP_SPAN pixels do mundo), com as laterais esmaecidas e borradas.
-/// Segurando ACT.MAP (TAB) o quadro cresce ate o centro da tela e mostra todos
-/// os corredores da run, do inicio ao chefe.
+/// Canto inferior direito (compacto): uma janela da grade em volta do jogador,
+/// com cerca de 7 celulas e 3 faixas, laterais esmaecidas.
+/// Segurando ACT.MAP (TAB) o quadro cresce ate o centro (expandido) e mostra a
+/// grade inteira do bioma, a ordem dos biomas da run e a legenda.
 ///
-/// Tudo vem de global.run.maps: trechos de combate (pending/active/cleared), as
-/// entradas das salas especiais e o chefe no fim. Trechos ainda nao descobertos
-/// (section.discovered) aparecem como "???" e escondem o que tem dentro.
+/// Tudo vem do proprio mapa (global.run.maps, ver scr_level): cada celula
+/// ocupada vira um trecho de barra na linha da faixa dela, as escadas viram
+/// tracos verticais entre as faixas e as portas viram icones. Nevoa:
+///   visitado (chunk.discovered)  cor do tipo e do estado do combate
+///   conhecido (chunk.seen)       contorno tracejado com "?"
+///   desconhecido                 nao aparece
 /// Nada aqui altera o jogo.
 
 #macro MINIMAP_W 232
-#macro MINIMAP_H 60
+#macro MINIMAP_H 96
 #macro MINIMAP_MARGIN 18
-#macro MINIMAP_SPAN 1500   // largura do mundo visivel no minimapa do canto
-#macro MINIMAP_FADE 48     // largura das bordas esmaecidas, em pixels da interface
+#macro MINIMAP_CELL 34     // largura de uma celula no quadro do canto
+#macro MINIMAP_ROW 28      // distancia entre faixas no quadro do canto
+#macro MINIMAP_FADE 40     // largura das bordas esmaecidas, em pixels da interface
+#macro MINIMAP_FULL_W 760
+#macro MINIMAP_FULL_H 420
 
 function minimap_state() {
     if (!variable_global_exists("minimap")) {
@@ -23,144 +29,159 @@ function minimap_state() {
     return global.minimap;
 }
 
-/// Ha um corredor para mostrar (run ativa, fora do lobby e da arena final).
+/// Ha um mapa para mostrar (run ativa, fora do lobby).
 function minimap_available() {
     if (!global.run.active) return false;
     return !is_undefined(run_current_map());
 }
 
-/// Posicao do jogador no corredor. Dentro de uma sala especial vale a porta
-/// por onde ele entrou.
-function minimap_player_x(_map) {
+/// Posicao do jogador no mapa: [x do mundo, faixa (fracionada na escada), lado].
+/// Dentro de uma sala interior vale a porta por onde ele entrou.
+function minimap_player_pos(_map) {
     if (global.stage.kind == "main_map") {
         var _p = instance_find(obj_player, 0);
-        if (_p != noone) return _p.x;
+        if (_p != noone) {
+            var _band = floor(_p.y / _map.band_h);
+            if (_p.state == PS.CLIMB && _p.climb_link >= 0) {
+                var _k = _map.links[_p.climb_link];
+                _band = lerp(_map.chunks[_k.a].band, _map.chunks[_k.b].band, level_smooth(_p.climb_t));
+            }
+            return [_p.x, _band, _p.facing];
+        }
     }
     var _ctx = global.run.return_context;
-    if (!is_undefined(_ctx) && _ctx.stage_sid == _map.sid) return _ctx.x;
-    return 0;
+    if (!is_undefined(_ctx) && _ctx.stage_sid == _map.sid) return [_ctx.x, floor(_ctx.y / _map.band_h), _ctx.facing];
+    var _st = _map.chunks[_map.start];
+    return [_st.x1 + 60, _st.band, 1];
 }
 
-function minimap_player_facing() {
-    var _p = instance_find(obj_player, 0);
-    if (global.stage.kind == "main_map" && _p != noone) return _p.facing;
-    return 1;
-}
-
-/// Desenha um corredor na faixa [_x, _x + _w] x [_y, _y + _h], mostrando o
-/// trecho do mundo entre _wx0 e _wx1. _labels escreve o tipo de cada entrada.
-/// _here: este e o corredor em que o jogador esta (desenha o marcador dele).
-function minimap_draw_corridor(_map, _x, _y, _w, _h, _wx0, _wx1, _labels, _here) {
-    var _k = _w / (_wx1 - _wx0);
-    var _line_y = round(_y + _h * 0.62);
+/// Cor de um chunk visitado: combates pelo estado, os demais pelo tipo.
+function minimap_chunk_colour(_map, _ch) {
     var _blink = (current_time div 250) mod 2 == 0;
+    switch (_ch.type) {
+        case "combat":
+        case "exit_combat":
+        case "horde":
+        case "boss":
+            var _base = room_kind_colour("combat");
+            if (_ch.type == "boss") _base = room_kind_colour("boss");
+            if (_ch.type == "horde") _base = make_colour_rgb(255, 90, 60);
+            var _done = (_ch.type == "boss") ? _map.completed : (_ch.state == "cleared");
+            if (_done) return make_colour_rgb(84, 92, 128);
+            if (_ch.state == "active") return _blink ? _base : merge_colour(_base, c_white, 0.35);
+            return merge_colour(_base, c_black, 0.3);
+        case "dead_end":
+            return make_colour_rgb(150, 132, 210);
+        case "junction":
+            return make_colour_rgb(70, 150, 170);
+    }
+    return make_colour_rgb(72, 80, 112);
+}
 
-    // chao do corredor
-    var _lx0 = max(_x, _x + (0 - _wx0) * _k);
-    var _lx1 = min(_x + _w, _x + (_map.width - _wx0) * _k);
-    if (_lx1 > _lx0) {
-        draw_set_colour(make_colour_rgb(58, 64, 96));
-        draw_rectangle(_lx0, _line_y - 1, _lx1, _line_y + 1, false);
+/// Desenha o mapa com a coluna 0 em _ox e a faixa 0 em _oy: cada celula tem _cw
+/// px de largura e cada faixa _rh px de altura. _labels escreve os tipos das
+/// portas e o chefe (mapa expandido).
+function minimap_draw_level(_map, _ox, _oy, _cw, _rh, _labels) {
+    var _kx = _cw / _map.cell_w;
+    var _half = max(3, round(_rh * 0.14));   // meia altura da barra
+    var _rooms = global.run.special_rooms;
+
+    // escadas: atras das barras, quando uma das pontas ja foi visitada
+    for (var _i = 0; _i < array_length(_map.stairs); _i++) {
+        var _k = _map.links[_map.stairs[_i]];
+        var _low = _map.chunks[_k.a];
+        var _up = _map.chunks[_k.b];
+        if (!_low.discovered && !_up.discovered) continue;
+        var _sx = round(_ox + (_k.x_foot + _k.x_top) * 0.5 * _kx);
+        var _y1 = _oy + (_up.band + 0.5) * _rh + _half;
+        var _y2 = _oy + (_low.band + 0.5) * _rh - _half;
+        draw_set_colour(c_black);
+        draw_rectangle(_sx - 2, _y1, _sx + 2, _y2, false);
+        draw_set_colour(make_colour_rgb(70, 190, 210));
+        draw_rectangle(_sx - 1, _y1, _sx + 1, _y2, false);
     }
 
-    // trechos de combate e chefe
-    for (var _i = 0; _i < array_length(_map.sections); _i++) {
-        var _s = _map.sections[_i];
-        var _sx0 = _x + (_s.x1 - _wx0) * _k + 2;
-        var _sx1 = _x + (_s.x2 - _wx0) * _k - 2;
-        if (_sx1 < _x || _sx0 > _x + _w) continue;
-        _sx0 = max(_sx0, _x);
-        _sx1 = min(_sx1, _x + _w);
+    for (var _i = 0; _i < array_length(_map.chunks); _i++) {
+        var _ch = _map.chunks[_i];
+        if (!_ch.on_grid || !_ch.seen) continue;
+        var _x1 = round(_ox + _ch.col * _cw);
+        var _x2 = _x1 + _cw - 1;
+        var _y = round(_oy + (_ch.band + 0.5) * _rh);
 
-        // trecho ainda nao explorado: so "???", sem tipo, inimigos ou chefe
-        if (!run_section_discovered(_s)) {
-            draw_set_colour(make_colour_rgb(40, 44, 68));
-            draw_rectangle(_sx0, _line_y - 3, _sx1, _line_y + 3, false);
+        if (!_ch.discovered) {
+            // conhecido mas nao visitado: tracejado, sem revelar o conteudo
             draw_set_colour(make_colour_rgb(70, 76, 108));
-            for (var _d = _sx0; _d < _sx1; _d += 8) draw_rectangle(_d, _line_y - 1, min(_d + 3, _sx1), _line_y + 1, false);
-            if (_sx1 - _sx0 > string_width("???") + 4) {
+            for (var _d = _x1; _d < _x2; _d += 6) {
+                draw_rectangle(_d, _y - _half, min(_d + 2, _x2), _y - _half + 1, false);
+                draw_rectangle(_d, _y + _half - 1, min(_d + 2, _x2), _y + _half, false);
+            }
+            if (_cw >= 20) {
                 draw_set_halign(fa_center);
-                hud_text((_sx0 + _sx1) * 0.5, _line_y - 22, "???", make_colour_rgb(110, 118, 160));
+                draw_set_valign(fa_middle);
+                hud_text((_x1 + _x2) * 0.5, _y, "?", make_colour_rgb(110, 118, 160));
+                draw_set_valign(fa_top);
             }
             continue;
         }
-        // trecho inicial: so chao, nada para fazer
-        if (_s.kind == "start") {
-            draw_set_colour(make_colour_rgb(72, 80, 112));
-            draw_rectangle(_sx0, _line_y - 2, _sx1, _line_y + 2, false);
-            continue;
-        }
 
-        var _boss = (_s.kind == "boss");
-        var _done = _boss ? _map.completed : (_s.state == "cleared");
-        var _base = room_kind_colour(_boss ? "boss" : "combat");
-        var _col;
-        if (_done) _col = make_colour_rgb(84, 92, 128);
-        else if (_s.state == "active") _col = _blink ? _base : merge_colour(_base, c_white, 0.35);
-        else _col = merge_colour(_base, c_black, 0.45);
-        draw_set_colour(_col);
-        draw_rectangle(_sx0, _line_y - 3, _sx1, _line_y + 3, false);
-
-        if (_boss) {
-            // losango do chefe no meio da arena
-            var _bx = _x + ((_s.x1 + _s.x2) * 0.5 - _wx0) * _k;
-            if (_bx > _x - 8 && _bx < _x + _w + 8) {
-                var _by = _line_y - 12;
-                draw_set_colour(c_black);
-                draw_triangle(_bx - 7, _by, _bx + 7, _by, _bx, _by - 8, false);
-                draw_triangle(_bx - 7, _by, _bx + 7, _by, _bx, _by + 8, false);
-                draw_set_colour(_done ? make_colour_rgb(84, 92, 128) : _base);
-                draw_triangle(_bx - 5, _by, _bx + 5, _by, _bx, _by - 6, false);
-                draw_triangle(_bx - 5, _by, _bx + 5, _by, _bx, _by + 6, false);
-                if (_labels) {
-                    draw_set_halign(fa_center);
-                    hud_text(_bx, _line_y + 8, "CHEFE", _done ? make_colour_rgb(120, 128, 160) : _base);
-                }
-            }
-        }
-    }
-
-    // entradas das salas especiais: portinhas acima do chao
-    for (var _i = 0; _i < array_length(_map.specials); _i++) {
-        var _sp = _map.specials[_i];
-        var _dx = round(_x + (_sp.x - _wx0) * _k);
-        if (_dx < _x - 6 || _dx > _x + _w + 6) continue;
-        if (!run_map_x_discovered(_map, _sp.x)) continue; // nao revela o que vem adiante
-        var _rooms = global.run.special_rooms;
-        var _used = variable_struct_exists(_rooms, _sp.target_sid) && _rooms[$ _sp.target_sid].used;
-        var _col = _used ? make_colour_rgb(96, 102, 136) : room_kind_colour(_sp.room_kind);
         draw_set_colour(c_black);
-        draw_rectangle(_dx - 5, _line_y - 16, _dx + 5, _line_y - 3, false);
-        draw_set_colour(_col);
-        draw_rectangle(_dx - 4, _line_y - 15, _dx + 4, _line_y - 4, false);
-        draw_set_colour(c_black);
-        draw_rectangle(_dx - 2, _line_y - 12, _dx + 2, _line_y - 4, false);
-        if (_labels) {
-            draw_set_halign(fa_center);
-            hud_text(_dx, _line_y - 34, room_kind_label(_sp.room_kind), _col);
-        }
-    }
+        draw_rectangle(_x1, _y - _half - 1, _x2 + 1, _y + _half + 1, false);
+        draw_set_colour(minimap_chunk_colour(_map, _ch));
+        draw_rectangle(_x1 + 1, _y - _half, _x2, _y + _half, false);
 
-    // jogador
-    if (_here) {
-        var _px = round(_x + (minimap_player_x(_map) - _wx0) * _k);
-        if (_px >= _x - 4 && _px <= _x + _w + 4) {
-            var _gold = make_colour_rgb(255, 210, 63);
-            var _r = 5 + ((current_time div 120) mod 4);
-            draw_set_colour(_gold);
-            draw_set_alpha(draw_get_alpha() * 0.5);
-            draw_circle(_px, _line_y, _r, true);
-            draw_set_alpha(draw_get_alpha() * 2);
+        if (_ch.type == "boss") {
+            // losango do chefe
+            var _bx = (_x1 + _x2) * 0.5;
+            var _by = _y - _half - 9;
             draw_set_colour(c_black);
-            draw_circle(_px, _line_y, 4, false);
-            draw_set_colour(c_white);
-            draw_circle(_px, _line_y, 3, false);
-            // seta para o lado que ele olha
-            var _f = minimap_player_facing();
-            draw_set_colour(_gold);
-            draw_triangle(_px + _f * 5, _line_y - 3, _px + _f * 5, _line_y + 3, _px + _f * 9, _line_y, false);
+            draw_triangle(_bx - 7, _by, _bx + 7, _by, _bx, _by - 8, false);
+            draw_triangle(_bx - 7, _by, _bx + 7, _by, _bx, _by + 8, false);
+            draw_set_colour(_map.completed ? make_colour_rgb(84, 92, 128) : room_kind_colour("boss"));
+            draw_triangle(_bx - 5, _by, _bx + 5, _by, _bx, _by - 6, false);
+            draw_triangle(_bx - 5, _by, _bx + 5, _by, _bx, _by + 6, false);
+            if (_labels) {
+                draw_set_halign(fa_center);
+                hud_text(_bx, _y + _half + 2, "CHEFE", _map.completed ? make_colour_rgb(120, 128, 160) : room_kind_colour("boss"));
+            }
+        }
+
+        if (_ch.door >= 0) {
+            // porta de sala interior: portinha acima da barra
+            var _room = _map.chunks[_ch.door];
+            var _dx = round(_ox + _ch.door_x * _kx);
+            var _used = variable_struct_exists(_rooms, _room.sid) && _rooms[$ _room.sid].used;
+            var _col = _used ? make_colour_rgb(96, 102, 136) : room_kind_colour(_room.room_kind);
+            var _top = _y - _half - 12;
+            draw_set_colour(c_black);
+            draw_rectangle(_dx - 5, _top - 1, _dx + 5, _y - _half, false);
+            draw_set_colour(_col);
+            draw_rectangle(_dx - 4, _top, _dx + 4, _y - _half - 1, false);
+            draw_set_colour(c_black);
+            draw_rectangle(_dx - 2, _top + 3, _dx + 2, _y - _half - 1, false);
+            if (_labels) {
+                draw_set_halign(fa_center);
+                hud_text(_dx, _top - 17, room_kind_label(_room.room_kind), _col);
+            }
         }
     }
+    draw_set_colour(c_white);
+}
+
+/// Marcador do jogador: circulo branco com halo e seta para o lado em que olha.
+function minimap_draw_player(_px, _py, _facing) {
+    var _gold = make_colour_rgb(255, 210, 63);
+    var _r = 5 + ((current_time div 120) mod 4);
+    var _a = draw_get_alpha();
+    draw_set_colour(_gold);
+    draw_set_alpha(_a * 0.5);
+    draw_circle(_px, _py, _r, true);
+    draw_set_alpha(_a);
+    draw_set_colour(c_black);
+    draw_circle(_px, _py, 4, false);
+    draw_set_colour(c_white);
+    draw_circle(_px, _py, 3, false);
+    draw_set_colour(_gold);
+    draw_triangle(_px + _facing * 5, _py - 3, _px + _facing * 5, _py + 3, _px + _facing * 9, _py, false);
     draw_set_colour(c_white);
 }
 
@@ -177,9 +198,9 @@ function minimap_frame(_x, _y, _w, _h, _alpha) {
     draw_set_colour(c_white);
 }
 
-/// Minimapa do canto: o corredor e desenhado numa surface e copiado em tiras
-/// verticais. Perto das laterais as tiras ficam transparentes e misturam
-/// colunas vizinhas, o que esmaece e borra a borda da "camera".
+/// Quadro do canto: a grade e desenhada numa surface com o jogador no centro e
+/// copiada em tiras verticais; perto das laterais as tiras ficam transparentes e
+/// misturam colunas vizinhas (borda esmaecida da "camera").
 function minimap_draw_corner(_map, _alpha) {
     if (_alpha <= 0) return;
     var _st = minimap_state();
@@ -188,13 +209,18 @@ function minimap_draw_corner(_map, _alpha) {
     var _x = _gw - MINIMAP_MARGIN - MINIMAP_W;
     var _y = _gh - MINIMAP_MARGIN - MINIMAP_H;
 
+    if (surface_exists(_st.surf) && (surface_get_width(_st.surf) != MINIMAP_W || surface_get_height(_st.surf) != MINIMAP_H)) {
+        surface_free(_st.surf);
+    }
     if (!surface_exists(_st.surf)) _st.surf = surface_create(MINIMAP_W, MINIMAP_H);
-    var _cx = minimap_player_x(_map);
+    var _pp = minimap_player_pos(_map);
+    var _ox = MINIMAP_W * 0.5 - _pp[0] / _map.cell_w * MINIMAP_CELL;
+    var _oy = MINIMAP_H * 0.5 + 8 - (_pp[1] + 0.5) * MINIMAP_ROW;
     surface_set_target(_st.surf);
     draw_clear_alpha(c_black, 0);
     draw_set_alpha(1);
-    minimap_draw_corridor(_map, 0, 0, MINIMAP_W, MINIMAP_H,
-        _cx - MINIMAP_SPAN * 0.5, _cx + MINIMAP_SPAN * 0.5, false, true);
+    minimap_draw_level(_map, _ox, _oy, MINIMAP_CELL, MINIMAP_ROW, false);
+    minimap_draw_player(MINIMAP_W * 0.5, MINIMAP_H * 0.5 + 8, _pp[2]);
     surface_reset_target();
 
     minimap_frame(_x, _y, MINIMAP_W, MINIMAP_H, _alpha);
@@ -217,7 +243,7 @@ function minimap_draw_corner(_map, _alpha) {
         draw_surface_part_ext(_st.surf, _sr, 0, _step, MINIMAP_H, _x + _sx, _y + 1, 1, 1, c_white, _a * 0.3);
     }
 
-    // nome do bioma e dica do mapa completo
+    // nome do bioma, nivel atual e dica do mapa expandido
     draw_set_alpha(_alpha);
     draw_set_halign(fa_left);
     hud_text(_x + 6, _y + 3, _map.name, make_colour_rgb(170, 180, 220));
@@ -226,71 +252,81 @@ function minimap_draw_corner(_map, _alpha) {
     draw_set_alpha(1);
 }
 
-/// Mapa completo: um corredor por bioma, de cima para baixo, com legenda.
+/// Mapa expandido: a grade inteira do bioma atual, a ordem dos biomas da run e
+/// a legenda.
 function minimap_draw_full(_x, _y, _w, _h, _alpha) {
-    var _maps = global.run.maps;
-    var _cur = global.run.map_index;
-    var _n = array_length(_maps);
+    var _map = run_current_map();
     var _gold = make_colour_rgb(255, 210, 63);
     var _dim = make_colour_rgb(120, 128, 160);
 
     draw_set_alpha(_alpha);
     draw_set_halign(fa_center);
-    hud_text(_x + _w * 0.5, _y + 12, "MAPA DA RUN", make_colour_rgb(45, 226, 230));
+    hud_text(_x + _w * 0.5, _y + 10, "MAPA - " + _map.name, make_colour_rgb(45, 226, 230));
 
-    var _row_h = 72;
-    var _top = _y + 44;
-    var _name_w = 130;
-    var _sx = _x + 20 + _name_w;
-    var _sw = _w - 40 - _name_w;
-    for (var _i = 0; _i < _n; _i++) {
-        var _m = _maps[_i];
-        var _ry = _top + _i * _row_h;
-        var _here = (_i == _cur);
-        var _future = (_i > _cur);
-
-        draw_set_halign(fa_left);
-        hud_text(_x + 20, _ry + 26, _m.name, _here ? _gold : (_future ? make_colour_rgb(80, 86, 116) : _dim));
-        if (_m.completed) hud_text(_x + 20, _ry + 44, "concluido", _dim);
-        else if (_here) hud_text(_x + 20, _ry + 44, "voce esta aqui", _gold);
-
-        if (_future) {
-            // corredores ainda nao visitados: so a linha, sem revelar o conteudo
-            draw_set_colour(make_colour_rgb(46, 50, 76));
-            for (var _d = 0; _d < _sw; _d += 12) {
-                draw_rectangle(_sx + _d, _ry + 44, _sx + min(_d + 6, _sw), _ry + 46, false);
-            }
-            draw_set_halign(fa_center);
-            hud_text(_sx + _sw * 0.5, _ry + 22, "???", make_colour_rgb(80, 86, 116));
-            continue;
+    // biomas da run: concluidos, atual e os proximos sem nome
+    var _parts = [];
+    for (var _i = 0; _i < array_length(global.run.maps); _i++) {
+        var _m = global.run.maps[_i];
+        var _txt = (_i > global.run.map_index) ? "???" : _m.name;
+        if (_m.completed && _i != global.run.map_index) _txt += " (ok)";
+        array_push(_parts, [_txt, (_i == global.run.map_index) ? _gold : ((_i < global.run.map_index) ? _dim : make_colour_rgb(80, 86, 116))]);
+    }
+    var _total = 0;
+    for (var _i = 0; _i < array_length(_parts); _i++) _total += string_width(_parts[_i][0]) + ((_i > 0) ? string_width("  >  ") : 0);
+    var _bx = _x + (_w - _total) * 0.5;
+    draw_set_halign(fa_left);
+    for (var _i = 0; _i < array_length(_parts); _i++) {
+        if (_i > 0) {
+            hud_text(_bx, _y + 30, "  >  ", _dim);
+            _bx += string_width("  >  ");
         }
-        draw_set_alpha(_alpha * (_m.completed && !_here ? 0.55 : 1));
-        minimap_draw_corridor(_m, _sx, _ry, _sw, _row_h, 0, _m.width, _here, _here);
-        draw_set_alpha(_alpha);
+        hud_text(_bx, _y + 30, _parts[_i][0], _parts[_i][1]);
+        _bx += string_width(_parts[_i][0]);
     }
 
-    // legenda
-    var _ly = _y + _h - 30;
+    // grade do bioma, centralizada na area livre
+    var _ax = _x + 24;
+    var _ay = _y + 70;
+    var _aw = _w - 48;
+    var _ah = _h - 70 - 56;
+    var _cw = min(64, floor(_aw / _map.cols));
+    var _rh = min(64, floor(_ah / _map.bands));
+    var _ox = _ax + (_aw - _cw * _map.cols) * 0.5;
+    var _oy = _ay + (_ah - _rh * _map.bands) * 0.5;
+    minimap_draw_level(_map, _ox, _oy, _cw, _rh, true);
+    var _pp = minimap_player_pos(_map);
+    minimap_draw_player(_ox + _pp[0] / _map.cell_w * _cw, _oy + (_pp[1] + 0.5) * _rh, _pp[2]);
+
+    // legenda (quebra em duas linhas se precisar)
     var _items = [
-        ["combat", "COMBATE"], ["reward", "TESOURO"], ["challenge", "DESAFIO"],
-        ["shop", "LOJA"], ["rest", "DESCANSO"], ["boss", "CHEFE"]
+        [room_kind_colour("combat"), "COMBATE"], [make_colour_rgb(255, 90, 60), "HORDA"],
+        [make_colour_rgb(150, 132, 210), "BECO"], [make_colour_rgb(70, 190, 210), "ESCADA"],
+        [room_kind_colour("reward"), "TESOURO"], [room_kind_colour("challenge"), "DESAFIO"],
+        [room_kind_colour("shop"), "LOJA"], [room_kind_colour("rest"), "DESCANSO"],
+        [room_kind_colour("boss"), "CHEFE"]
     ];
-    var _ix = _x + 24;
+    var _lx = _x + 24;
+    var _ly = _y + _h - 46;
     draw_set_halign(fa_left);
     for (var _i = 0; _i < array_length(_items); _i++) {
-        draw_set_colour(room_kind_colour(_items[_i][0]));
-        draw_rectangle(_ix, _ly + 4, _ix + 9, _ly + 13, false);
-        hud_text(_ix + 14, _ly, _items[_i][1], c_white);
-        _ix += 26 + string_width(_items[_i][1]);
+        var _iw = 26 + string_width(_items[_i][1]);
+        if (_lx + _iw > _x + _w - 24) {
+            _lx = _x + 24;
+            _ly += 20;
+        }
+        draw_set_colour(_items[_i][0]);
+        draw_rectangle(_lx, _ly + 4, _lx + 9, _ly + 13, false);
+        hud_text(_lx + 14, _ly, _items[_i][1], c_white);
+        _lx += _iw;
     }
     draw_set_colour(c_white);
-    draw_circle(_ix + 4, _ly + 8, 4, false);
-    hud_text(_ix + 14, _ly, "VOCE", _gold);
+    draw_circle(_lx + 4, _ly + 8, 4, false);
+    hud_text(_lx + 14, _ly, "VOCE  ? = conhecido, nao visitado", _gold);
     draw_set_halign(fa_left);
     draw_set_alpha(1);
 }
 
-/// Chamado pelo hud_draw. Segurar ACT.MAP abre o mapa completo com uma
+/// Chamado pelo hud_draw. Segurar ACT.MAP abre o mapa expandido com uma
 /// transicao: o quadro do canto cresce ate o centro da tela.
 function minimap_draw() {
     var _st = minimap_state();
@@ -310,11 +346,8 @@ function minimap_draw() {
     minimap_draw_corner(_map, 1 - min(1, _e * 3));
     if (_e <= 0) return;
 
-    var _n = array_length(global.run.maps);
-    var _fw = 760;
-    var _fh = 44 + _n * 72 + 44;
-    var _fx = (_gw - _fw) * 0.5;
-    var _fy = (_gh - _fh) * 0.5;
+    var _fx = (_gw - MINIMAP_FULL_W) * 0.5;
+    var _fy = (_gh - MINIMAP_FULL_H) * 0.5;
     var _cx = _gw - MINIMAP_MARGIN - MINIMAP_W;
     var _cy = _gh - MINIMAP_MARGIN - MINIMAP_H;
 
@@ -325,8 +358,8 @@ function minimap_draw() {
 
     var _x = lerp(_cx, _fx, _e);
     var _y = lerp(_cy, _fy, _e);
-    var _w = lerp(MINIMAP_W, _fw, _e);
-    var _h = lerp(MINIMAP_H, _fh, _e);
+    var _w = lerp(MINIMAP_W, MINIMAP_FULL_W, _e);
+    var _h = lerp(MINIMAP_H, MINIMAP_FULL_H, _e);
     minimap_frame(_x, _y, _w, _h, 1);
     if (_e > 0.6) minimap_draw_full(_x, _y, _w, _h, (_e - 0.6) / 0.4);
 

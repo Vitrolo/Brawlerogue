@@ -54,7 +54,8 @@ function actor_physics() {
         _xmax = max(_xmax, _x0);
     }
     x = clamp(x, _xmin, _xmax);
-    y = clamp(y, global.stage.floor_top, global.stage.floor_bottom);
+    // nos mapas 2D o chao e o da faixa do corredor atual (scr_level)
+    y = clamp(y, stage_floor_top(), stage_floor_bottom());
     return _landed;
 }
 

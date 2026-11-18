@@ -17,6 +17,7 @@ enum PS {
     DEAD,
     GRAB,
     THROW,
+    CLIMB,   // na escada entre duas faixas do mapa 2D (scr_level)
     COUNT
 }
 
@@ -43,6 +44,7 @@ function player_states_init() {
     _t[PS.DEAD]       = player_state_def("Dead",       false, false, true);
     _t[PS.GRAB]       = player_state_def("Grab",       false, false, false);
     _t[PS.THROW]      = player_state_def("Throw",      false, false, false);
+    _t[PS.CLIMB]      = player_state_def("Climb",      false, false, true);
     global.player_states = _t;
 }
 
@@ -77,6 +79,10 @@ function player_create() {
     dodge_dy = 0;
     down_timer = 0;
     anim_clock = 0;
+    climb_link = -1;      // escada em uso (indice em map.links)
+    climb_t = 0;          // 0 no pe, 1 no topo
+    climb_moving = false;
+    stairs_hold = 0;      // frames segurando cima/baixo junto a uma escada
 
     on_hit = function(_hit) { return player_on_hit(_hit); };
     on_hit_landed = function(_hit) { player_on_hit_landed(_hit); };
@@ -122,9 +128,13 @@ function player_step() {
         if (_ax != 0) facing = sign(_ax);
         var _want = (_ax != 0 || _ay != 0) ? PS.WALK : PS.IDLE;
         if (state != _want) actor_set_state(_want);
-        if (_controls && _info.can_act) player_try_actions();
+        if (_controls && _info.can_act && !player_stairs_try(_ay)) player_try_actions();
     } else {
         switch (state) {
+            case PS.CLIMB:
+                player_climb_step(_controls ? _ay : 0, _spd);
+                break;
+
             case PS.JUMP_START:
                 if (state_timer >= _P.jump_start_frames) {
                     vz = _P.jump_speed;
@@ -243,7 +253,8 @@ function player_step() {
         }
     }
 
-    var _landed = actor_physics();
+    // na escada a posicao vem do segmento da escada, fora dos limites da faixa
+    var _landed = (state == PS.CLIMB) ? false : actor_physics();
     if (_landed && (state == PS.AIR || state == PS.AIR_ATTACK)) {
         hitbox_clear(id);
         vx = 0;
@@ -507,7 +518,88 @@ function player_animate() {
             var _n = sprite_get_number(_S.throw_spr);
             actor_anim(_S.throw_spr, min(_n - 1, (state_timer * _n) div CFG.player.grab.throw_frames));
             break;
+        // escada: os degraus sao uma diagonal, entao o andar serve
+        case PS.CLIMB:
+            if (climb_moving) actor_anim(_S.walk, (anim_clock div 6) mod 6);
+            else actor_anim(_S.idle, 0);
+            break;
     }
+}
+
+// ------------------------------------------------------------------ escadas
+
+/// Escadas dos mapas 2D. No pe (encostado na parede do fundo), segurar para
+/// cima sobe; no topo (na beirada da frente do chao de cima), segurar para baixo
+/// desce. Interagir tambem usa a escada. Trancada durante uma horda.
+/// Retorna true se o jogador entrou na escada neste frame.
+function player_stairs_try(_ay) {
+    var _map = level_current_map();
+    if (is_undefined(_map) || z > 0) {
+        stairs_hold = 0;
+        return false;
+    }
+    var _near = level_stairs_near(_map, global.stage_rt.corridor, x, y);
+    if (is_undefined(_near)) {
+        stairs_hold = 0;
+        return false;
+    }
+    if (!stage_exits_open()) {
+        global.prompt = "TRANCADA - derrote os inimigos";
+        stairs_hold = 0;
+        return false;
+    }
+    var _toward = _near.top ? 1 : -1; // eixo y que empurra para dentro da escada
+    global.prompt = _near.top
+        ? "[" + input_action_label(ACT.DOWN) + "] DESCER"
+        : "[" + input_action_label(ACT.UP) + "] SUBIR";
+    stairs_hold = (_ay == _toward) ? stairs_hold + 1 : 0;
+    if (stairs_hold < CFG.level.stair_hold && !input_pressed(ACT.INTERACT)) return false;
+
+    stairs_hold = 0;
+    climb_link = _near.link;
+    climb_t = _near.top ? 1 : 0;
+    climb_moving = false;
+    vx = 0;
+    vy = 0;
+    actor_set_state(PS.CLIMB);
+    return true;
+}
+
+/// Anda pelo segmento da escada (cima = sobe). Ao chegar a uma ponta, volta ao
+/// chao no corredor daquela ponta.
+function player_climb_step(_ay, _spd) {
+    var _map = level_current_map();
+    if (is_undefined(_map) || climb_link < 0) {
+        actor_set_state(PS.IDLE);
+        return;
+    }
+    var _k = _map.links[climb_link];
+    var _len = max(1, point_distance(_k.x_foot, _k.y_foot, _k.x_top, _k.y_top));
+    var _dir = -_ay; // cima = +1
+    climb_t = clamp(climb_t + _dir * CFG.level.climb_speed * _spd / _len, 0, 1);
+    climb_moving = (_dir != 0);
+    x = lerp(_k.x_foot, _k.x_top, climb_t);
+    y = lerp(_k.y_foot, _k.y_top, climb_t);
+    vx = 0;
+    vy = 0;
+    z = 0;
+    vz = 0;
+    if (_dir != 0) facing = sign(_k.x_top - _k.x_foot) * _dir;
+
+    if (climb_t >= 1 && _dir > 0) player_stairs_leave(_map, _k, true);
+    else if (climb_t <= 0 && _dir < 0) player_stairs_leave(_map, _k, false);
+}
+
+/// Sai da escada pelo topo (_top) ou pelo pe, ja dentro do chao daquela faixa.
+function player_stairs_leave(_map, _k, _top) {
+    var _ch = _map.chunks[_top ? _k.b : _k.a];
+    x = _top ? _k.x_top : _k.x_foot;
+    y = _top ? _ch.floor_bottom - 2 : _ch.floor_top + 2;
+    stage_set_corridor(_ch.corridor);
+    level_discover(_map, _ch.index);
+    climb_link = -1;
+    climb_moving = false;
+    actor_set_state(PS.IDLE);
 }
 
 // ------------------------------------------------------- agarrao e arremesso

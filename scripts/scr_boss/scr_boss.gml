@@ -223,7 +223,7 @@ function boss_step() {
                 // reforcos entram pelas bordas da arena
                 for (var _i = 0; _i < array_length(cfg.summon); _i++) {
                     var _sx = (_i mod 2 == 0) ? stage_x1() + 30 : stage_x2() - 30;
-                    instance_create_depth(_sx, global.stage.floor_top + 20 + _i * 30, 0, obj_enemy, { enemy_type: cfg.summon[_i] });
+                    instance_create_depth(_sx, stage_floor_top() + 20 + _i * 30, 0, obj_enemy, { enemy_type: cfg.summon[_i] });
                 }
                 actor_set_state(BS.IDLE);
             }
