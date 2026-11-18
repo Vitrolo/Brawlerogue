@@ -303,7 +303,7 @@ function run_level_fill(_lv, _biome, _b, _used) {
     var _grid = array_create(_bands, 0);
     for (var _r = 0; _r < _bands; _r++) _grid[_r] = array_create(_lv.cols, -1);
 
-    // 1) geometria de cada chunk (as salas interiores herdam a da porta)
+    // 1) geometria de cada chunk
     var _chunks = [];
     for (var _i = 0; _i < array_length(_lv.chunks); _i++) {
         var _src = _lv.chunks[_i];
@@ -334,11 +334,9 @@ function run_level_fill(_lv, _biome, _b, _used) {
             trigger_x2: 0,
             lock_x1: _x1,
             lock_x2: _x1 + _W,
-            sid: "",                // modulo das ondas ou sala interior
+            sid: "",                // modulo das ondas ou da sala
             name: "",
-            room_kind: _src.room_kind,
-            door: -1,               // corredor: indice da sala interior da porta
-            door_x: 0,
+            room_x: 0,              // sala: x do objeto (banca, bau, banco, painel)
             reward_key: "",         // horda: bau que aparece depois de limpar
             discovered: false,      // o jogador ja passou por aqui
             seen: false             // aparece no minimapa (com "?" enquanto nao visitado)
@@ -346,7 +344,7 @@ function run_level_fill(_lv, _biome, _b, _used) {
         if (_src.on_grid) _grid[_band][_src.col] = _i;
     }
 
-    // 2) links; escadas ganham o pe e o topo no mundo, portas a posicao no cenario
+    // 2) links; as escadas ganham o pe e o topo no mundo
     var _links_out = [];
     var _stairs = [];
     for (var _l = 0; _l < array_length(_lv.links); _l++) {
@@ -366,10 +364,6 @@ function run_level_fill(_lv, _biome, _b, _used) {
             _link.x_top = round(_foot) + _rise * _run;
             _link.y_top = _up.floor_bottom;
             array_push(_stairs, _l);
-        } else if (_src_link.kind == "door") {
-            var _host = _chunks[_src_link.a];
-            _host.door = _src_link.b;
-            _host.door_x = run_entrance_world_x(_host.col, stage_entrance_img_x(_biome.bid, _chunks[_src_link.b].room_kind), _W);
         }
         array_push(_links_out, _link);
     }
@@ -379,7 +373,7 @@ function run_level_fill(_lv, _biome, _b, _used) {
     var _props = [];
     for (var _i = 0; _i < array_length(_chunks); _i++) {
         var _ch = _chunks[_i];
-        var _avoid = (_ch.door >= 0) ? [_ch.door_x] : [];
+        var _avoid = [];
         switch (_ch.type) {
             case "start":
                 _ch.name = "Inicio";
@@ -441,27 +435,31 @@ function run_level_fill(_lv, _biome, _b, _used) {
 
             case "dead_end":
                 run_level_add_props(_props, _biome.bid, _ch, _avoid);
-                // beco sem porta: uma arma esquecida no fundo (os quebraveis dao moedas e comida)
-                if (_ch.door < 0) {
-                    var _closed = -level_open_side(_lv, _i);
-                    array_push(_pickups, {
-                        key: "cache_" + _sid + "_" + string(_i),
-                        wid: (irandom(1) == 0) ? "w_pipe" : "w_bat",
-                        x: (_closed > 0) ? _ch.x2 - 150 : _ch.x1 + 150,
-                        y: _ch.oy + 236
-                    });
-                }
+                // beco: uma arma esquecida no fundo (os quebraveis dao moedas e comida)
+                var _closed = -level_open_side(_lv, _i);
+                array_push(_pickups, {
+                    key: "cache_" + _sid + "_" + string(_i),
+                    wid: (irandom(1) == 0) ? "w_pipe" : "w_bat",
+                    x: (_closed > 0) ? _ch.x2 - 150 : _ch.x1 + 150,
+                    y: _ch.oy + 236
+                });
                 break;
 
-            case "interior":
-                // "challenge" usa os modulos de sala "event"
-                var _module_kind = (_ch.room_kind == "challenge") ? "event" : _ch.room_kind;
+            case "shop":
+            case "reward":
+            case "rest":
+            case "challenge":
+                // sala dentro do proprio corredor: o modulo de scr_rooms da o nome
+                // e a seed das ofertas; o estado (usada, estoque) fica em
+                // global.run.special_rooms. "challenge" usa os modulos "event".
+                var _module_kind = (_ch.type == "challenge") ? "event" : _ch.type;
                 var _target = room_pick_fallback(_biome.bid, _module_kind, "mid", _used);
-                if (is_undefined(_target)) show_error("Falta a sala opcional " + _ch.room_kind + " para " + _biome.name + ".", true);
+                if (is_undefined(_target)) show_error("Falta a sala " + _ch.type + " para " + _biome.name + ".", true);
                 _used[$ _target] = true;
                 global.run.special_rooms[$ _target] = { seed: irandom(999999), used: false, stock: undefined };
                 _ch.sid = _target;
                 _ch.name = stage_get(_target).name;
+                _ch.room_x = _ch.x1 + _W * 0.5;
                 break;
         }
     }
@@ -490,16 +488,6 @@ function run_level_fill(_lv, _biome, _b, _used) {
             cap_left: true,
             cap_right: !array_contains(_ids, _lv.boss)
         });
-    }
-    // porta pintada rente a ponta de um corredor (descanso do esgoto, por exemplo):
-    // essa ponta fica sem parede para a porta continuar alcancavel
-    var _zone = _L.cap_margin + 30;
-    for (var _i = 0; _i < array_length(_chunks); _i++) {
-        var _ch = _chunks[_i];
-        if (!_ch.on_grid || _ch.door < 0) continue;
-        var _cor = _cors[_ch.corridor];
-        if (_ch.col == _cor.c1 && _ch.door_x < _cor.x1 + _zone) _cor.cap_left = false;
-        if (_ch.col == _cor.c2 && _ch.door_x > _cor.x2 - _zone) _cor.cap_right = false;
     }
 
     var _map = {
@@ -595,6 +583,24 @@ function run_level_spawn_reward(_map, _ch) {
     });
 }
 
+/// Objeto da sala no meio da celula, encostado na parede do fundo: banca da
+/// loja, bau do tesouro, banco do descanso ou painel do desafio. Usa o estado
+/// salvo pelo modulo da sala (usado, estoque), como a antiga sala separada.
+function run_level_spawn_room(_ch) {
+    var _state = run_special_state(_ch.sid);
+    var _kind = _ch.type;
+    if (_kind == "reward") _kind = "chest";
+    if (_kind == "challenge") _kind = "event";
+    instance_create_depth(_ch.room_x, _ch.floor_top + 12, 0, obj_interact, {
+        kind: _kind,
+        seed: _state.seed,
+        used: _state.used,
+        stock: _state.stock,
+        persistence_key: _ch.sid,
+        room_name: _ch.name
+    });
+}
+
 /// Runs salvas antes dos mapas 2D nao podem continuar: o formato do mapa mudou.
 function run_save_compatible(_run) {
     if (!is_struct(_run) || !variable_struct_exists(_run, "maps") || !is_array(_run.maps) || array_length(_run.maps) == 0) return false;
@@ -629,22 +635,6 @@ function run_pick_combat(_bid, _role, _used) {
     if (is_undefined(_sid)) _sid = room_pick(_bid, "combat", _role, {});
     if (is_undefined(_sid)) _sid = room_pick(_bid, "combat", "mid", {});
     return _sid;
-}
-
-/// Posicao de uma entrada no mundo quando ela cai no tile _tile do cenario. Os
-/// tiles impares sao espelhados, entao neles a entrada fica em largura - img_x.
-function run_entrance_world_x(_tile, _img_x, _tile_w) {
-    return _tile * _tile_w + ((_tile mod 2 == 0) ? _img_x : _tile_w - _img_x);
-}
-
-function run_special_label(_kind) {
-    switch (_kind) {
-        case "reward":    return "TESOURO";
-        case "challenge": return "DESAFIO";
-        case "shop":      return "LOJA";
-        case "rest":      return "DESCANSO";
-    }
-    return string_upper(_kind);
 }
 
 /// Registra a sala de cada corredor a partir de global.run.maps. Separado da
@@ -759,27 +749,6 @@ function run_special_state_save(_sid, _used, _stock) {
     _state.used = _used;
     _state.stock = _stock;
     global.run.special_rooms[$ _sid] = _state;
-}
-
-function run_enter_special(_target_sid) {
-    var _p = instance_find(obj_player, 0);
-    if (_p == noone || !global.run.active) return;
-    if (global.stage.kind == "main_map") run_map_snapshot_ground_weapons(global.stage_rt.map_index);
-    global.run.return_context = {
-        stage_sid: global.stage.sid,
-        x: _p.x,
-        y: _p.y,
-        facing: _p.facing
-    };
-    stage_goto(_target_sid);
-}
-
-function run_return_from_special() {
-    if (is_undefined(global.run.return_context)) {
-        stage_goto("lobby");
-        return;
-    }
-    stage_goto(global.run.return_context.stage_sid);
 }
 
 /// Chefe do corredor derrotado. A luta acaba, mas o jogador continua na arena:

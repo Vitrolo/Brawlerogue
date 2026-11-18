@@ -87,14 +87,6 @@ function stage_build() {
     var _spawn_x = _def.player_spawn.x;
     var _spawn_y = _def.player_spawn.y;
     var _spawn_facing = 1;
-    // Nas salas especiais o jogador surge na propria porta (a de saida, em
-    // width - 52, a mesma criada abaixo), como se tivesse acabado de entrar
-    // por ela, virado para dentro da sala.
-    if (_def.kind == "rest" || _def.kind == "reward" || _def.kind == "shop" || _def.kind == "event") {
-        _spawn_x = _def.width - 52;
-        _spawn_y = _def.floor_top + 6;
-        _spawn_facing = -1;
-    }
     var _has_return = _def.kind == "main_map" && !is_undefined(global.run.return_context)
         && global.run.return_context.stage_sid == _def.sid;
     if (_has_return) {
@@ -124,17 +116,8 @@ function stage_build() {
             var _ch = _map.chunks[_i];
             // combate interrompido (run carregada ou sala reconstruida) volta a esperar
             if (_ch.state == "active") _ch.state = "pending";
-            // porta de sala interior, ja pintada no tile do cenario
-            if (_ch.door >= 0) {
-                var _room = _map.chunks[_ch.door];
-                instance_create_depth(_ch.door_x, _ch.floor_top, 0, obj_door, {
-                    kind: "special",
-                    label: run_special_label(_room.room_kind),
-                    requires_clear: true,
-                    room_kind: _room.room_kind,
-                    target_sid: _room.sid
-                });
-            }
+            // sala no proprio corredor: banca, bau, banco ou painel do desafio
+            if (chunk_is_room(_ch.type)) run_level_spawn_room(_ch);
             // bau de horda vencida que ainda nao foi aberto
             if (_ch.type == "horde" && _ch.state == "cleared") run_level_spawn_reward(_map, _ch);
         }
@@ -190,19 +173,7 @@ function stage_build() {
             });
         }
 
-        if (_def.kind == "rest" || _def.kind == "reward" || _def.kind == "shop" || _def.kind == "event") {
-            var _special_state = run_special_state(_def.sid);
-            interact_spawn_for_stage(_def, _special_state.seed, _special_state);
-            instance_create_depth(_def.width - 52, _def.floor_top, 0, obj_door, {
-                kind: "return",
-                label: "VOLTAR",
-                requires_clear: false
-            });
-            global.stage_rt.title = string_upper(_def.name);
-            global.stage_rt.subtitle = "";
-        } else {
-            interact_spawn_for_stage(_def, 0);
-        }
+        interact_spawn_for_stage(_def);
     }
 
     if (_def.kind != "main_map") {

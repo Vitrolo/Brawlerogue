@@ -18,6 +18,7 @@ enum PS {
     GRAB,
     THROW,
     CLIMB,   // na escada entre duas faixas do mapa 2D (scr_level)
+    RUN,     // andando com ACT.RUN segurado
     COUNT
 }
 
@@ -45,6 +46,7 @@ function player_states_init() {
     _t[PS.GRAB]       = player_state_def("Grab",       false, false, false);
     _t[PS.THROW]      = player_state_def("Throw",      false, false, false);
     _t[PS.CLIMB]      = player_state_def("Climb",      false, false, true);
+    _t[PS.RUN]        = player_state_def("Run",        true,  true,  false);
     global.player_states = _t;
 }
 
@@ -123,11 +125,17 @@ function player_step() {
             _ax = 0;
             _ay = 0;
         }
-        vx = _ax * _P.speed_x * _spd;
-        vy = _ay * _P.speed_y * _spd;
+        // correr: segurar ACT.RUN enquanto anda (vale para qualquer direcao)
+        var _moving = (_ax != 0 || _ay != 0);
+        var _running = _moving && _controls && input_held(ACT.RUN);
+        var _rx = _running ? _P.run.speed_mult : 1;
+        var _ry = _running ? _P.run.depth_mult : 1;
+        vx = _ax * _P.speed_x * _spd * _rx;
+        vy = _ay * _P.speed_y * _spd * _ry;
         if (_ax != 0) facing = sign(_ax);
-        var _want = (_ax != 0 || _ay != 0) ? PS.WALK : PS.IDLE;
+        var _want = _moving ? (_running ? PS.RUN : PS.WALK) : PS.IDLE;
         if (state != _want) actor_set_state(_want);
+        if (state == PS.RUN) player_run_fx();
         if (_controls && _info.can_act && !player_stairs_try(_ay)) player_try_actions();
     } else {
         switch (state) {
@@ -491,17 +499,33 @@ function attack_anim_frame(_atk, _timer) {
     return 2;
 }
 
+/// Sprite do golpe para este personagem: golpes compartilhados (armas) usam a chave
+/// char_sprite em pchar.sprites; os demais, o sprite fixo do golpe.
+function player_attack_sprite(_atk) {
+    if (_atk.char_sprite != "" && variable_struct_exists(pchar.sprites, _atk.char_sprite)) {
+        return pchar.sprites[$ _atk.char_sprite];
+    }
+    return _atk.sprite;
+}
+
 function player_animate() {
     var _S = pchar.sprites;
+    // inclinacao para a frente so na corrida (em volta dos pes)
+    draw_angle = (state == PS.RUN && abs(vx) > 0.1) ? -facing * CFG.player.run.lean : 0;
     switch (state) {
         case PS.IDLE:       actor_anim(_S.idle, (anim_clock div 10) mod 4); break;
         case PS.WALK:       actor_anim(_S.walk, (anim_clock div 6) mod 6); break;
+        // corrida: ciclo proprio de 6 quadros (spr_player_run / spr_p2_run)
+        case PS.RUN:        actor_anim(_S.run, (anim_clock div CFG.player.run.anim_div) mod sprite_get_number(_S.run)); break;
         case PS.JUMP_START: actor_anim(_S.land, 0); break;
         case PS.AIR:        actor_anim(vz > 0 ? _S.jump : _S.fall, 0); break;
-        case PS.AIR_ATTACK: actor_anim(atk.sprite, 0); break;
+        case PS.AIR_ATTACK: actor_anim(player_attack_sprite(atk), 0); break;
         case PS.LAND:       actor_anim(_S.land, 0); break;
-        case PS.ATTACK:     actor_anim(atk.sprite, attack_anim_frame(atk, state_timer)); break;
-        case PS.SPECIAL:    actor_anim(atk.sprite, (state_timer div 3) mod sprite_get_number(atk.sprite)); break;
+        case PS.ATTACK:     actor_anim(player_attack_sprite(atk), attack_anim_frame(atk, state_timer)); break;
+        case PS.SPECIAL:
+            var _sp = player_attack_sprite(atk);
+            actor_anim(_sp, (state_timer div 3) mod sprite_get_number(_sp));
+            break;
         case PS.DODGE:      actor_anim(_S.dodge, 0); break;
         case PS.BLOCK:      actor_anim(_S.block, 0); break;
         case PS.HURT:       actor_anim(_S.hurt, 0); break;
@@ -709,4 +733,14 @@ function player_release_grab() {
         }
     }
     grab_target = noone;
+}
+
+// ------------------------------------------------------------------ corrida
+
+/// Poeira nos pes e um rastro leve enquanto corre (os intervalos ficam em
+/// CFG.player.run).
+function player_run_fx() {
+    var _R = CFG.player.run;
+    if (_R.dust_every > 0 && state_timer mod _R.dust_every == 0) fx_dust(x - facing * 6, y, 2);
+    if (_R.ghost_every > 0 && state_timer mod _R.ghost_every == 0) fx_ghost(id, make_colour_rgb(255, 210, 63));
 }

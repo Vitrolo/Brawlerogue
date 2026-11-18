@@ -145,6 +145,15 @@ function config_init() {
             hp_max: 100,
             speed_x: 1.6,
             speed_y: 1.1,
+            // corrida: segurar ACT.RUN (Shift) enquanto anda
+            run: {
+                speed_mult: 1.75,  // velocidade horizontal correndo
+                depth_mult: 1.15,  // velocidade em profundidade correndo
+                anim_div: 4,       // quadros de jogo por quadro da animacao (andar usa 6)
+                lean: 0,           // inclinacao extra do sprite, em graus (a arte ja corre inclinada)
+                dust_every: 8,     // poeira nos pes a cada tantos quadros
+                ghost_every: 6     // rastro leve a cada tantos quadros (0 desliga)
+            },
             body_w: 9,         // meia largura da hurtbox
             body_h: 40,        // altura da hurtbox
             jump_start_frames: 3,
@@ -262,6 +271,7 @@ function attack_define(_name, _fields) {
         guard_break: false, // passa pelo escudo do Escudeiro
         cancel_after: 2,   // frames de recuperacao antes de poder encadear o proximo golpe
         sprite: -1,        // sprite de 3 frames: preparacao, ativo, recuperacao
+        char_sprite: "",   // golpe compartilhado: chave em pchar.sprites (vence `sprite`)
     };
     var _keys = variable_struct_get_names(_fields);
     for (var _i = 0; _i < array_length(_keys); _i++) {
@@ -299,10 +309,10 @@ function config_attacks_init() {
     attack_define("thrown_body", { startup: 0, active: 45, recovery: 0, damage: 10, reach: 14, lane: 10, z_bottom: -10, both_sides: true, knock_x: 2.5, knock_z: 2.8, knockdown: true, hitstop: 5, guard_break: true });
 
     // Armas: um golpe unico que substitui o combo enquanto a arma durar
-    attack_define("weapon_pipe", { startup: 6, active: 4, recovery: 14, damage: 14, reach: 42, knock_x: 2.4, hitstop: 6, lunge: 0.5, sprite: spr_player_attack1 });
-    attack_define("weapon_bat", { startup: 9, active: 4, recovery: 18, damage: 20, reach: 36, knock_x: 3.4, knock_z: 3.2, knockdown: true, hitstop: 8, lunge: 0.8, guard_break: true, sprite: spr_player_attack2 });
-    CFG.weapons[$ "w_pipe"] = { name: "Cano", attack: "weapon_pipe", durability: 12, length: 20, colour: make_colour_rgb(170, 180, 190), sprite: spr_weapon_pipe };
-    CFG.weapons[$ "w_bat"] = { name: "Taco", attack: "weapon_bat", durability: 8, length: 16, colour: make_colour_rgb(200, 150, 90), sprite: spr_weapon_bat };
+    attack_define("weapon_pipe", { startup: 6, active: 4, recovery: 14, damage: 14, reach: 42, knock_x: 2.4, hitstop: 6, lunge: 0.5, sprite: spr_player_attack1, char_sprite: "swing_light" });
+    attack_define("weapon_bat", { startup: 9, active: 4, recovery: 18, damage: 20, reach: 36, knock_x: 3.4, knock_z: 3.2, knockdown: true, hitstop: 8, lunge: 0.8, guard_break: true, sprite: spr_player_attack2, char_sprite: "swing_heavy" });
+    CFG.weapons[$ "w_pipe"] = { name: "Cano", attack: "weapon_pipe", durability: 12, length: 20, colour: make_colour_rgb(170, 180, 190), sprite: spr_weapon_pipe, grip: [1, 19] };
+    CFG.weapons[$ "w_bat"] = { name: "Taco", attack: "weapon_bat", durability: 8, length: 16, colour: make_colour_rgb(200, 150, 90), sprite: spr_weapon_bat, grip: [0, 20] };
 
     attack_define("runner_jab", { startup: 3, active: 3, recovery: 10, damage: 5, reach: 20, lane: 8, knock_x: 1.2, lunge: 1.4, hitstop: 3, sprite: spr_runner_attack });
     attack_define("brute_smash", { startup: 6, active: 5, recovery: 22, damage: 14, reach: 30, lane: 10, knock_x: 3, knock_z: 3, knockdown: true, hitstop: 7, lunge: 0.6, sprite: spr_brute_attack });

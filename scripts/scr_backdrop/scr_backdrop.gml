@@ -29,101 +29,8 @@ function stage_backdrop_info(_biome) {
     }
 }
 
-/// Centro da entrada integrada dentro do tile de 768 px do cenario. Cada bioma tem
-/// trechos de parede livres diferentes (sem canos, janelas ou lojas por baixo).
-/// Mesma tabela de ART_CENTERS em tools/import_v2_art.py.
-function stage_entrance_img_x(_biome, _kind) {
-    switch (_biome) {
-        case "sewer":
-            switch (_kind) { case "reward": return 560; case "challenge": return 240; case "shop": return 470; default: return 32; }
-        case "streets":
-            return (_kind == "reward" || _kind == "shop") ? 630 : 219;
-        case "rooftops":
-            return (_kind == "reward" || _kind == "shop") ? 505 : 295;
-    }
-    return 384;
-}
-
-/// Variante de cenario que contem a entrada integrada para este tipo de local.
-function stage_backdrop_entrance(_biome, _kind) {
-    switch (_biome) {
-        case "sewer":
-            switch (_kind) {
-                case "reward": return spr_bg_chunk_sewer_reward;
-                case "challenge": return spr_bg_chunk_sewer_challenge;
-                case "shop": return spr_bg_chunk_sewer_shop;
-                case "rest": return spr_bg_chunk_sewer_rest;
-            }
-            break;
-        case "streets":
-            switch (_kind) {
-                case "reward": return spr_bg_chunk_streets_reward;
-                case "challenge": return spr_bg_chunk_streets_challenge;
-                case "shop": return spr_bg_chunk_streets_shop;
-                case "rest": return spr_bg_chunk_streets_rest;
-            }
-            break;
-        case "rooftops":
-            switch (_kind) {
-                case "reward": return spr_bg_chunk_rooftops_reward;
-                case "challenge": return spr_bg_chunk_rooftops_challenge;
-                case "shop": return spr_bg_chunk_rooftops_shop;
-                case "rest": return spr_bg_chunk_rooftops_rest;
-            }
-            break;
-    }
-    return -1;
-}
-
-/// Interior fixo de cada sala especial. Evento usa o visual de desafio.
-function stage_backdrop_special(_biome, _kind) {
-    if (_kind == "event") _kind = "challenge";
-    switch (_biome) {
-        case "sewer":
-            switch (_kind) {
-                case "reward": return spr_interior_sewer_reward;
-                case "challenge": return spr_interior_sewer_challenge;
-                case "shop": return spr_interior_sewer_shop;
-                case "rest": return spr_interior_sewer_rest;
-            }
-            break;
-        case "streets":
-            switch (_kind) {
-                case "reward": return spr_interior_streets_reward;
-                case "challenge": return spr_interior_streets_challenge;
-                case "shop": return spr_interior_streets_shop;
-                case "rest": return spr_interior_streets_rest;
-            }
-            break;
-        case "rooftops":
-            switch (_kind) {
-                case "reward": return spr_interior_rooftops_reward;
-                case "challenge": return spr_interior_rooftops_challenge;
-                case "shop": return spr_interior_rooftops_shop;
-                case "rest": return spr_interior_rooftops_rest;
-            }
-            break;
-    }
-    return -1;
-}
-
 function stage_draw_placeholder() {
     var _s = global.stage;
-    var _special_spr = stage_backdrop_special(_s.biome, _s.kind);
-    if (_special_spr >= 0) {
-        // Modulos especiais ocupam exatamente a tela; a camera fica em x=0.
-        draw_set_alpha(1);
-        draw_set_colour(c_white);
-        draw_sprite_part(_special_spr, 0, 0, 0, VIEW_W, VIEW_H, 0, 0);
-        return;
-    }
-    if (variable_struct_exists(_s, "black_background") && _s.black_background) {
-        draw_set_alpha(1);
-        draw_set_colour(c_black);
-        draw_rectangle(-16, -16, VIEW_W + 16, VIEW_H + 16, false);
-        draw_set_colour(c_white);
-        return;
-    }
     var _map = level_current_map();
     if (!is_undefined(_map)) {
         stage_draw_level(_map);
@@ -190,8 +97,7 @@ function backdrop_strip(_spr, _sy, _sh, _ox, _dy, _cx1, _cx2) {
 // ------------------------------------------------------------ mapas 2D
 
 /// Cenario de um mapa 2D: so as faixas e tiles que a camera ve. Cada corredor
-/// desenha o cenario do bioma recortado nos proprios limites (com a variante de
-/// entrada nas celulas com porta). Por cima vem o que liga as faixas: laje sob
+/// desenha o cenario do bioma recortado nos proprios limites. Por cima vem o que liga as faixas: laje sob
 /// o chao de cima, paredes de fim de corredor, escadas e aberturas.
 function stage_draw_level(_map) {
     var _s = global.stage;
@@ -248,11 +154,6 @@ function stage_draw_corridor(_map, _c, _info, _dx1, _dx2) {
         var _x = _t * _w + (_flip ? _w : 0);
         var _xs = _flip ? -1 : 1;
         var _tile_spr = _spr;
-        var _cell = _map.grid[_c.band][_t];
-        if (_cell >= 0 && _map.chunks[_cell].door >= 0) {
-            var _variant = stage_backdrop_entrance(_s.biome, _map.chunks[_map.chunks[_cell].door].room_kind);
-            if (_variant >= 0) _tile_spr = _variant;
-        }
         if (_src_y1 > _src_y0) {
             draw_sprite_part_ext(_tile_spr, 0, 0, _src_y0, _w, _src_y1 - _src_y0, _x, _iy + _src_y0, _xs, 1, c_white, 1);
         }
@@ -442,24 +343,10 @@ function level_band_sprite(_biome, _row, _default) {
     return _default;
 }
 
-// ------------------------------------------------- indicadores das entradas
+// ------------------------------------------------- indicadores das salas
 
-/// Altura da porta pintada no cenario acima da linha do chao, em pixels do mundo
-/// (altura da arte menos o quanto ela afunda no chao). Mesmos numeros de
-/// tools/import_v2_art.py: porta sem o cano do esgoto (77 - 7), ruas (65 - 2),
-/// telhados (54 - 2).
-function stage_entrance_height(_biome) {
-    switch (_biome) {
-        case "sewer":    return 70;
-        case "streets":  return 63;
-        case "rooftops": return 52;
-    }
-    return 64;
-}
-
-/// Desenha, no Draw GUI, um icone pulsante com seta acima de cada entrada
-/// especial do corredor. E so desenho: nao tem colisao nem mexe na porta.
-/// Fica no HUD (nao no cenario), entao nunca sai espelhado.
+/// Desenha, no Draw GUI, um icone pulsante com seta acima de cada sala do mapa
+/// (loja, tesouro, descanso, desafio) e as setas das escadas. E so desenho.
 function stage_entrance_indicators_draw() {
     var _s = global.stage;
     if (is_undefined(_s) || _s.kind != "main_map") return;
@@ -469,25 +356,26 @@ function stage_entrance_indicators_draw() {
     var _ky = CFG.view.gui_h / VIEW_H;
     var _camx = camera_get_view_x(view_camera[0]);
     var _camy = camera_get_view_y(view_camera[0]);
-    // a porta fica no topo do chao da propria faixa (y da instancia)
-    var _lift = 8 + stage_entrance_height(_s.biome) + _M.gap;
     var _open = stage_exits_open();
     var _rooms = global.run.special_rooms;
+    var _map = level_current_map();
 
-    with (obj_door) {
-        if (kind != "special") continue;
-        var _gx = (x - _camx) * _kx;
-        var _tip_y = (y - _lift - _camy) * _ky;
+    for (var _i = 0; _i < array_length(_map.chunks); _i++) {
+        var _ch = _map.chunks[_i];
+        if (!chunk_is_room(_ch.type)) continue;
+        // o icone fica acima do objeto da sala (banca, bau, banco, painel)
+        var _gx = (_ch.room_x - _camx) * _kx;
+        var _tip_y = (_ch.floor_top - 56 - _M.gap - _camy) * _ky;
         if (_gx < -40 || _gx > _gw + 40 || _tip_y < -60 || _tip_y > CFG.view.gui_h + 60) continue;
-        var _used = variable_struct_exists(_rooms, target_sid) && _rooms[$ target_sid].used;
-        var _col = _used ? make_colour_rgb(110, 116, 150) : room_kind_colour(room_kind);
-        // pulsacao suave; uma fase por porta para nao pulsarem em sincronia
-        var _ph = current_time * _M.pulse_speed + x * 0.01;
+        var _used = variable_struct_exists(_rooms, _ch.sid) && _rooms[$ _ch.sid].used;
+        var _col = _used ? make_colour_rgb(110, 116, 150) : room_kind_colour(_ch.type);
+        // pulsacao suave; uma fase por sala para nao pulsarem em sincronia
+        var _ph = current_time * _M.pulse_speed + _ch.room_x * 0.01;
         var _active = !_used && _open;
         var _scale = _active ? 1 + _M.pulse_scale * sin(_ph) : 1;
         var _bob = _active ? _M.bob * sin(_ph) : 0;
         var _alpha = _open ? (_active ? 0.85 + 0.15 * sin(_ph) : 0.7) : 0.45;
-        stage_entrance_indicator(_gx, _tip_y + _bob, room_kind, _col, _scale, _alpha);
+        stage_entrance_indicator(_gx, _tip_y + _bob, _ch.type, _col, _scale, _alpha);
     }
     stage_stairs_indicators_draw(_camx, _camy, _kx, _ky, _open);
     draw_set_alpha(1);

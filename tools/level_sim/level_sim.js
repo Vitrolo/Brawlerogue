@@ -136,7 +136,7 @@ function independentCheck(lv, cfg, types) {
             stairsPer[l.a]++;
             stairsPer[l.b]++;
         }
-        if (l.kind === 'door' && (B.on_grid || B.type !== 'interior')) errs.push('porta sem sala interior');
+        if (l.kind !== 'walk' && l.kind !== 'stairs') errs.push('ligacao de tipo desconhecido: ' + l.kind);
         for (const [ix, dir] of [[l.a, dirOf(l, l.a)], [l.b, dirOf(l, l.b)]]) {
             if (!types[lv.chunks[ix].type].sockets.includes(dir)) errs.push('abertura ' + dir + ' proibida em ' + lv.chunks[ix].type);
         }
@@ -172,7 +172,10 @@ function independentCheck(lv, cfg, types) {
     }
     if (lv.chunks[lv.boss].type !== 'boss' || lv.chunks[lv.boss].row !== 0) errs.push('chefe fora do principal');
     // salas obrigatorias
-    const rooms = lv.chunks.filter((c) => c.type === 'interior').map((c) => c.room_kind);
+    const rooms = lv.chunks.filter((c) => ROOM[c.type]).map((c) => c.type);
+    for (const c of lv.chunks) if (!c.on_grid) errs.push('chunk fora da grade');
+    for (const k of cfg.interiors_main) if (lv.chunks.some((c) => c.type === k && c.row !== 0)) errs.push('sala ' + k + ' fora do principal');
+    if (rooms.filter((r) => r === 'rest').length > 1) errs.push('descanso repetido');
     for (const k of cfg.interiors_main.concat(cfg.interiors_branch)) {
         if (rooms.filter((r) => r === k).length !== 1) errs.push('sala ' + k + ' faltando ou repetida');
     }
@@ -182,7 +185,7 @@ function independentCheck(lv, cfg, types) {
 function dirOf(l, ix) {
     if (l.kind === 'walk') return ix === l.a ? 'right' : 'left';
     if (l.kind === 'stairs') return ix === l.a ? 'up' : 'down';
-    return 'door';
+    return '';
 }
 
 // ------------------------------------------------------------ desenho ASCII
@@ -190,13 +193,12 @@ function dirOf(l, ix) {
 const LETTER = {
     start: 'INI', boss: 'CHF', exit_combat: 'SAI', combat: 'cmb', junction: 'esc',
     corridor: '...', dead_end: 'BEC', horde: 'HOR',
+    shop: 'LOJ', reward: 'TES', challenge: 'DES', rest: 'DSC',
 };
 const ROOM = { shop: '$', reward: 'T', challenge: '!', rest: 'z' };
 
 function ascii(lv) {
     const lines = [];
-    const doorOf = new Map();
-    for (const l of lv.links) if (l.kind === 'door') doorOf.set(l.a, lv.chunks[l.b].room_kind);
     const stairsCols = new Map(); // "linha_de_baixo" -> colunas com escada para cima
     for (const l of lv.links) {
         if (l.kind !== 'stairs') continue;
@@ -222,9 +224,8 @@ function ascii(lv) {
             if (g < 0) { row += '      '; continue; }
             any = true;
             const ch = lv.chunks[g];
-            const door = doorOf.has(g) ? ROOM[doorOf.get(g)] : ' ';
             // celulas vizinhas da mesma linha sempre estao ligadas (a validacao exige)
-            row += '[' + LETTER[ch.type] + door + ']';
+            row += '[' + LETTER[ch.type] + ' ]';
         }
         if (any) lines.push(row);
     }
@@ -288,16 +289,16 @@ function main() {
         }
         stats.branches.push(roots.size);
         if (onGrid.some((c) => Math.abs(c.row) === 2)) stats.depth2++;
-        const walkStairs = lv.links.filter((l) => l.kind !== 'door').length;
+        const walkStairs = lv.links.length;
         if (walkStairs - onGrid.length + 1 === 1) stats.loops++;
         for (const c of lv.chunks) {
             if (c.type === 'dead_end') stats.dead_end++;
             if (c.type === 'horde') stats.horde++;
             if (c.type === 'combat' && c.on_grid && c.row !== 0) stats.branch_combat++;
-            if (c.type === 'interior') {
+            if (ROOM[c.type]) {
                 stats.rooms_total++;
                 if (c.row !== 0) stats.rooms_on_branch++;
-                if (c.room_kind === 'rest') stats.rest++;
+                if (c.type === 'rest') stats.rest++;
             }
         }
         if (s < first + show) {
@@ -321,7 +322,7 @@ function main() {
     console.log('ramos do principal: ' + hist(stats.branches));
     console.log('niveis com linha +-2: ' + stats.depth2 + '   com atalho (ciclo): ' + stats.loops);
     console.log('becos: ' + stats.dead_end + '   hordas: ' + stats.horde + '   combates em ramos: ' + stats.branch_combat);
-    console.log('salas interiores: ' + stats.rooms_total + ' (' + stats.rooms_on_branch + ' em ramos)   descansos: ' + stats.rest);
+    console.log('salas: ' + stats.rooms_total + ' (' + stats.rooms_on_branch + ' em ramos)   descansos: ' + stats.rest);
 
     const fillSeeds = Math.min(seeds, 300);
     const fillFailed = fillPhase(fillSeeds, first);
@@ -420,11 +421,18 @@ function verifyMap(ctx, map) {
     // chunks na grade e no mundo
     for (const ch of map.chunks) {
         if (!ch.on_grid) {
-            const st = ctx.stage_get(ch.sid);
-            if (!st) errs.push('sala interior sem modulo: ' + ch.room_kind);
-            else if (st.kind !== (ch.room_kind === 'challenge' ? 'event' : ch.room_kind)) errs.push('sala interior com modulo de outro tipo');
+            errs.push('chunk fora da grade');
             continue;
         }
+        if (ROOM[ch.type]) {
+            const st = ctx.stage_get(ch.sid);
+            if (!st) errs.push('sala sem modulo: ' + ch.type);
+            else if (st.kind !== (ch.type === 'challenge' ? 'event' : ch.type)) errs.push('sala com modulo de outro tipo');
+            if (!ctx.global.run.special_rooms[ch.sid]) errs.push('sala sem estado salvo');
+            if (!reach(ch.corridor, ch.room_x, 25)) errs.push('objeto da sala atras de uma parede no chunk ' + ch.index);
+            if (!(ch.room_x > ch.x1 && ch.room_x < ch.x2)) errs.push('objeto da sala fora da celula');
+        }
+        if ('door' in ch || 'door_x' in ch) errs.push('chunk ainda tem porta');
         if (ch.x1 !== ch.col * W || ch.x2 !== ch.x1 + W || ch.oy !== ch.band * H) errs.push('chunk ' + ch.index + ' fora do lugar');
         if (ch.floor_top !== ch.oy + 178 || ch.floor_bottom !== ch.oy + 258) errs.push('chao errado no chunk ' + ch.index);
         if (map.grid[ch.band][ch.col] !== ch.index) errs.push('grade do mundo errada no chunk ' + ch.index);
@@ -439,12 +447,6 @@ function verifyMap(ctx, map) {
                 if (!num(e.x) || !num(e.y)) errs.push('inimigo sem posicao');
             }
         } else if (ch.state !== 'cleared') errs.push('chunk sem combate fora de cleared');
-        if (ch.door >= 0) {
-            const room = map.chunks[ch.door];
-            if (room.on_grid || room.type !== 'interior') errs.push('porta sem sala');
-            if (!(ch.door_x > ch.x1 && ch.door_x < ch.x2)) errs.push('porta fora da celula no chunk ' + ch.index);
-            if (!reach(ch.corridor, ch.door_x, 19)) errs.push('porta atras de uma parede no chunk ' + ch.index);
-        }
         if (ch.type === 'horde' && !ctx.global.run.special_rooms[ch.reward_key]) errs.push('horda sem bau');
     }
     // corredores
@@ -514,7 +516,7 @@ function fillPhase(seeds, first) {
     }
     let ok = 0;
     let bad = 0;
-    const totals = { maps: 0, stairs: 0, doors: 0, pickups: 0, props: 0, hordes: 0, bands: 0 };
+    const totals = { maps: 0, stairs: 0, rooms: 0, pickups: 0, props: 0, hordes: 0, bands: 0 };
     for (let s = first; s < first + seeds; s++) {
         rngState = s * 2654435761 + 7;
         ctx.global.run = { special_rooms: {}, maps: [], return_context: undefined };
@@ -527,7 +529,7 @@ function fillPhase(seeds, first) {
                 errs = errs.concat(verifyMap(ctx, map).map((e) => ctx.global.biomes[b].bid + ': ' + e));
                 totals.maps++;
                 totals.stairs += map.stairs.length;
-                totals.doors += map.chunks.filter((c) => c.door >= 0).length;
+                totals.rooms += map.chunks.filter((c) => ROOM[c.type]).length;
                 totals.pickups += map.pickups.length;
                 totals.props += map.props.length;
                 totals.hordes += map.chunks.filter((c) => c.type === 'horde').length;
@@ -544,7 +546,7 @@ function fillPhase(seeds, first) {
     const per = (v) => (v / Math.max(1, totals.maps)).toFixed(2);
     console.log('\n=== preenchimento: ' + seeds + ' seeds x ' + ctx.global.biomes.length + ' biomas ===');
     console.log('ok: ' + ok + '   com problema: ' + bad);
-    console.log('por mapa: faixas ' + per(totals.bands) + '  escadas ' + per(totals.stairs) + '  portas ' + per(totals.doors)
+    console.log('por mapa: faixas ' + per(totals.bands) + '  escadas ' + per(totals.stairs) + '  salas ' + per(totals.rooms)
         + '  armas ' + per(totals.pickups) + '  objetos ' + per(totals.props) + '  hordas ' + per(totals.hordes));
     return bad > 0;
 }

@@ -15,6 +15,7 @@ enum ACT {
     INTERACT,
     PAUSE,
     MAP,
+    RUN,
     COUNT
 }
 
@@ -44,6 +45,7 @@ function input_init() {
     input_bind(ACT.INTERACT, [ord("E"), vk_enter],  [gp_shoulderrb],            "E");
     input_bind(ACT.PAUSE,    [vk_escape, ord("P")], [gp_start],                 "ESC");
     input_bind(ACT.MAP,      [vk_tab],              [gp_select],                "TAB");
+    input_bind(ACT.RUN,      [vk_shift],            [gp_stickl],                "SHIFT");
 }
 
 function input_bind(_action, _keys, _pad_buttons, _label) {

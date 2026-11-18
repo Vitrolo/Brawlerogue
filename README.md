@@ -2,7 +2,7 @@
 
 Beat 'em up roguelike single-player em GameMaker LTS 2026 (runtime 2026.0.0.23).
 
-Estado atual: a run vai do lobby por três mapas (esgoto, ruas e telhados). Cada mapa é uma rede 2D gerada pela seed: um corredor principal do início ao chefe e, acima e abaixo dele, corredores ligados por escadas percorríveis, com becos, hordas e portas para tesouro, desafio, loja e descanso. A geração, os testes e a arte nova estão descritos em [docs/geracao_2d.md](docs/geracao_2d.md).
+Estado atual: a run vai do lobby por três mapas (esgoto, ruas e telhados). Cada mapa é uma rede 2D gerada pela seed: um corredor principal do início ao chefe e, acima e abaixo dele, corredores ligados por escadas percorríveis, com becos, hordas e salas de tesouro, desafio, loja e descanso no próprio corredor. A geração, os testes e a arte nova estão descritos em [docs/geracao_2d.md](docs/geracao_2d.md).
 
 ## Como abrir e jogar
 
@@ -10,7 +10,7 @@ Estado atual: a run vai do lobby por três mapas (esgoto, ruas e telhados). Cada
 2. Rode com F5 (alvo Windows, VM).
 3. No lobby, ande até a porta e aperte `E` para iniciar a run.
 4. Avance pelo corredor principal; as hordas trancam o trecho até todos os inimigos serem derrotados.
-5. As setas ciano marcam escadas: no pé, encostado na parede, segure `W` para subir; no topo, na beirada da frente, segure `S` para descer. Os ramos levam a becos (arma e caixas), hordas (baú ao vencer) e portas para tesouro, desafio, loja e descanso; a porta de retorno leva ao ponto de entrada.
+5. As setas ciano marcam escadas: no pé, encostado na parede, segure `W` para subir; no topo, na beirada da frente, segure `S` para descer. Os ramos levam a becos (arma e caixas), hordas (baú ao vencer) e salas de tesouro, desafio, loja e descanso, que ficam no próprio corredor (ícone pulsante acima do objeto).
 6. Derrote o chefe no fim do corredor principal para seguir ao próximo bioma. Vencer o chefe do último mapa encerra a run. Segure `TAB` para ver o mapa inteiro do bioma.
 
 ## Controles
@@ -20,13 +20,14 @@ O mapeamento fica todo em `scripts/scr_input` (`input_init`). Teclado e controle
 | Ação | Teclado | Controle (layout Xbox) |
 | --- | --- | --- |
 | Mover (horizontal e profundidade) | W A S D ou setas | analógico esquerdo ou direcional |
+| Correr (segurar enquanto anda) | Shift | clicar o analógico esquerdo (segurar) |
 | Pular | Espaço | A |
 | Atacar / combo de 3 golpes / chute aéreo no pulo | J | X |
 | Bloquear (segurar) | K | RB |
 | Esquivar | L | B |
 | Agarrar; de novo para arremessar | U | Y |
 | Especial (gasta 50 de energia) | I | LB |
-| Interagir (portas, baús, loja, armas no chão) | E ou Enter | RT |
+| Interagir (baús, loja, descanso, desafio, armas no chão) | E ou Enter | RT |
 | Subir / descer escada (no pé ou no topo) | segurar W / S, ou E | direcional, ou RT |
 | Mapa inteiro do bioma (segurar) | TAB | Select |
 
@@ -80,7 +81,7 @@ Tudo abaixo vive em `global.run` e some ao fim da run. As definições ficam em 
 - **Armas** (Cano, Taco): `J` passa a dar um golpe único da arma no lugar do combo. Cada acerto gasta 1 de durabilidade; em 0 a arma quebra. Se a personagem for derrubada, a arma cai no chão e pode ser pega de novo. Algumas salas de combate têm uma arma no chão.
 - **Moedas**: 5 por inimigo derrotado, usadas só na loja.
 
-Salas especiais (as telas estão provisoriamente pretas e fixas em 480x270; use a porta `VOLTAR` para retornar ao corredor):
+Salas especiais (células do próprio corredor, com o objeto da sala no meio):
 
 - **Descanso**: cura 30% da vida máxima, uma vez.
 - **Recompensa**: escolha 1 entre 3.
@@ -94,14 +95,14 @@ Na tela de escolha: `A`/`D` selecionam, `E` confirma. As ofertas de cada sala s�
 Detalhes, diagramas e testes em [docs/geracao_2d.md](docs/geracao_2d.md).
 
 - `run_maps_build` gera um nível 2D por bioma com a seed da run (`level_build` em `scripts/scr_level_gen`) e o preenche com os módulos de `scripts/scr_rooms` (`run_level_fill` em `scripts/scr_route`).
-- O nível é uma grade de células de 768×270 (um tile do cenário por uma tela) e um grafo de ligações: passagem na mesma linha, escada entre linhas vizinhas e porta para uma sala interior. A validação confere que tudo é alcançável a partir do início, inclusive o chefe; se falhar 12 vezes, entra um nível linear.
-- Tipos de célula: início, corredor, escada, combate, saída, horda, beco e chefe; as salas interiores (tesouro, desafio, loja, descanso) ficam fora da grade, ligadas por uma porta.
+- O nível é uma grade de células de 768×270 (um tile do cenário por uma tela) e um grafo de ligações: passagem na mesma linha e escada entre linhas vizinhas. A validação confere que tudo é alcançável a partir do início, inclusive o chefe; se falhar 12 vezes, entra um nível linear.
+- Tipos de célula: início, corredor, escada, combate, saída, horda, beco, chefe e as salas (loja, tesouro, descanso, desafio). As salas são células do corredor, sem porta: o objeto da sala fica no meio delas e o desafio trava a própria célula como arena.
 - Cada faixa do mundo é uma tela de altura. O corredor do jogador define os limites de movimento, o chão e a câmera; na escada, a câmera passa de uma faixa para a outra sem trocar de room.
-- O combate de cada célula dispara quando o jogador entra nela, de qualquer lado, e trava a câmera, as escadas e as portas até a última onda.
+- O combate de cada célula dispara quando o jogador entra nela, de qualquer lado, e trava a câmera e as escadas até a última onda.
 - O estado das células (combate, descoberta), dos itens no chão e das salas especiais fica em `global.run` e vai para o save. Runs salvas antes dos mapas 2D são descartadas ao continuar; o progresso permanente fica.
 - O minimapa (canto e TAB) desenha a própria grade do nível, com névoa: visitado, conhecido (`?`) e desconhecido.
 - Os mapas e as salas especiais usam o mesmo room do GameMaker como casca (`RM_STAGE`, hoje `rm_sandbox`), com largura e altura calculadas.
-- F2 (com `CFG.debug.level_overlay_key`) mostra os limites das células, os gatilhos, as portas e as zonas das escadas.
+- F2 (com `CFG.debug.level_overlay_key`) mostra os limites das células, os gatilhos, as salas e as zonas das escadas.
 
 ## Como expandir
 
@@ -114,7 +115,7 @@ Detalhes, diagramas e testes em [docs/geracao_2d.md](docs/geracao_2d.md).
 - **Arma nova:** um item em `CFG.weapons`, um golpe com `attack_define` e um `mod_define` de categoria `weapon`.
 - **Golpe novo:** `attack_define(nome, campos)`; os padrões e o significado de cada campo estão no topo de `scr_config`.
 - **Controle e remapeamento:** só `input_init`; o resto do jogo consulta `ACT.*`.
-- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o importador. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`). Salas internas, entradas do corredor e objetos (baú, banca, banco, boneco de treino, barril, caixa, lixeira, carro, armas no chão) vêm de `tools/pixellab_raw/v2` e são montados por `python tools/import_v2_art.py`: a mesma porta do bioma aparece na entrada do corredor e na saída da sala, e o objeto do tipo da sala aparece ao lado da entrada e dentro dela. Escadas, paredes de fim de corredor e lajes dos mapas 2D vêm de `tools/pixellab_raw/v3` e são montadas por `python tools/import_v3_level_art.py`, que encaixa as cores na paleta do cenário do bioma e imprime o deslocamento de cada escada (vai em `stage_stairs_run`). `python tools/mock_level.py saida.png` monta uma prévia de duas faixas com escada.
+- **Arte:** os sprites vêm de `tools/pixellab_raw` e são montados por `python tools/import_pixellab.py`, que define quais quadros de cada animação viram cada sprite, encosta a figura no chão e põe a origem nos pés. Para trocar um personagem, substitua os PNGs em `tools/pixellab_raw/<personagem>` e rode o importador. Se mudar o número de quadros de idle/walk, ajuste o `mod` em `player_animate`, `scr_enemy` e `scr_boss`. Cenários: um `spr_bg_<bioma>` de 768x272 por bioma; as linhas do chão de cada imagem ficam em `stage_backdrop_info` (`scripts/scr_backdrop`). Objetos (baú, banca, banco, boneco de treino, barril, caixa, lixeira, carro, armas no chão) vêm de `tools/pixellab_raw/v2` e são montados por `python tools/import_v2_art.py`; o objeto de cada sala fica no meio da célula da sala, no próprio corredor. Escadas, paredes de fim de corredor e lajes dos mapas 2D vêm de `tools/pixellab_raw/v3` e são montadas por `python tools/import_v3_level_art.py`, que encaixa as cores na paleta do cenário do bioma e imprime o deslocamento de cada escada (vai em `stage_stairs_run`). `python tools/mock_level.py saida.png` monta uma prévia de duas faixas com escada.
 
 ## Estrutura
 
@@ -125,7 +126,7 @@ Detalhes, diagramas e testes em [docs/geracao_2d.md](docs/geracao_2d.md).
 - `scripts/scr_rooms` — biomas e módulos de sala.
 - `scripts/scr_level_gen` — tipos de célula, geração e validação dos níveis 2D (só dados; testado por `tools/level_sim`).
 - `scripts/scr_level` — nível 2D em jogo: corredor e faixa do jogador, chão, escadas, descoberta e desenho de depuração (F2).
-- `scripts/scr_route` — preenchimento dos mapas por bioma (ondas, portas, escadas, objetos), seleção de módulos e estado das salas opcionais.
+- `scripts/scr_route` — preenchimento dos mapas por bioma (ondas, salas, escadas, objetos), seleção de módulos e estado das salas opcionais.
 - `scripts/scr_backdrop` — desenha o cenário de cada faixa, paredes de fim de corredor, lajes e escadas.
 - `scripts/scr_minimap` — minimapa e mapa expandido da grade 2D.
 - `scripts/scr_modifiers` — recompensas, stats da run, armas, moedas e avisos.
@@ -140,7 +141,7 @@ Detalhes, diagramas e testes em [docs/geracao_2d.md](docs/geracao_2d.md).
 - `objects/` — eventos finos que chamam os scripts. `obj_game` é persistente e nasce em `rm_boot`.
 - `rooms/` — `rm_boot`, `rm_lobby`, `rm_sandbox`. Os rooms são cascas vazias; o conteúdo vem dos dados.
 - `tools/gen_project.py` — gerou os `.yy`, o `.yyp` e os sprites placeholder iniciais. Não rode mais o script inteiro nem `gen_sprites`: ele sobrescreve o `.yyp` e troca a arte atual pelos bonecos de blocos.
-- `tools/import_pixellab.py`, `tools/import_v2_art.py`, `tools/import_v3_level_art.py` e `tools/pngio.py` — importam personagens, cenários, salas internas, entradas, objetos e as peças dos mapas 2D.
+- `tools/import_pixellab.py`, `tools/import_v2_art.py`, `tools/import_v3_level_art.py` e `tools/pngio.py` — importam personagens, cenários, objetos e as peças dos mapas 2D.
 - `tools/level_sim/level_sim.js` — testes do gerador e do preenchimento dos mapas 2D (Node): roda o GML real em centenas de seeds.
 
 ## Novidades desta versão (ainda não testadas em jogo)
@@ -169,7 +170,7 @@ Limites conhecidos: os inimigos novos, os dois chefes novos e a Safira são troc
 
 - Inimigos não têm animação própria de idle nem de levantar: o idle é a pose parada com o tronco 1 px mais baixo e o levantar é um quadro da queda.
 - Agarrão e arremesso reaproveitam frames de ataque; a arma na mão é uma barra desenhada por cima da personagem.
-- As entradas do corredor fazem parte de variantes completas do cenário, com bordas idênticas ao fundo original; os nomes aparecem no aviso de interação. Portais simples continuam nas telas pretas de sala especial. As travas de combate permanecem invisíveis; objetos interativos ainda usam formas provisórias. Os interiores das salas opcionais são pretos até receberem arte própria.
+- As salas usam o cenário do bioma com o objeto da sala; as antigas entradas, interiores e salas separadas foram removidas. As travas de combate permanecem invisíveis.
 - A fonte é a padrão do GameMaker.
 - Não há som.
 

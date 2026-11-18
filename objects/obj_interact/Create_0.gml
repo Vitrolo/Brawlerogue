@@ -10,5 +10,6 @@ if (!variable_instance_exists(id, "persistence_key")) persistence_key = "";
 if (!variable_instance_exists(id, "persistent_key")) persistent_key = "";   // arma fixa do mapa (pickup)
 if (!variable_instance_exists(id, "map_index")) map_index = -1;
 if (!variable_instance_exists(id, "drop_key")) drop_key = "";
+if (!variable_instance_exists(id, "room_name")) room_name = ""; // nome da sala do mapa (titulo da escolha)
 bob = 0;
 depth = -y;

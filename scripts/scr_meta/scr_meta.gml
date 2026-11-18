@@ -27,11 +27,13 @@ function chars_init() {
         special: "special_spin",
         dodge_attack: "dodge_strike",
         sprites: {
-            idle: spr_player_idle, walk: spr_player_walk, jump: spr_player_jump,
+            idle: spr_player_idle, walk: spr_player_walk, run: spr_player_run, jump: spr_player_jump,
             fall: spr_player_fall, land: spr_player_land, dodge: spr_player_dodge,
             block: spr_player_block, hurt: spr_player_hurt, knockdown: spr_player_knockdown,
             getup: spr_player_getup, dead: spr_player_dead,
-            grab: spr_player_grab, knee: spr_player_attack3, throw_spr: spr_player_throw
+            grab: spr_player_grab, knee: spr_player_attack3, throw_spr: spr_player_throw,
+            // golpes com arma (cano: leve, taco: pesado)
+            swing_light: spr_player_attack1, swing_heavy: spr_player_attack2
         }
     };
 
@@ -47,11 +49,13 @@ function chars_init() {
         special: "s_rush",
         dodge_attack: "dodge_strike",
         sprites: {
-            idle: spr_p2_idle, walk: spr_p2_walk, jump: spr_p2_jump,
+            idle: spr_p2_idle, walk: spr_p2_walk, run: spr_p2_run, jump: spr_p2_jump,
             fall: spr_p2_fall, land: spr_p2_land, dodge: spr_p2_dodge,
             block: spr_p2_block, hurt: spr_p2_hurt, knockdown: spr_p2_knockdown,
             getup: spr_p2_getup, dead: spr_p2_dead,
-            grab: spr_p2_grab, knee: spr_p2_attack3, throw_spr: spr_p2_throw
+            grab: spr_p2_grab, knee: spr_p2_attack3, throw_spr: spr_p2_throw,
+            // golpes com arma (cano: leve, taco: pesado)
+            swing_light: spr_p2_attack1, swing_heavy: spr_p2_attack2
         }
     };
 }

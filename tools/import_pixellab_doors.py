@@ -1,4 +1,7 @@
-"""Importa as entradas tematicas do PixelLab como sprites do GameMaker.
+"""Importa a porta de saida do lobby (spr_door_lobby) do PixelLab.
+
+As portas dos biomas eram as entradas das salas internas, que viraram celulas
+do mapa 2D; os PNGs delas ficaram em tools/pixellab_raw/doors, sem uso.
 
 Uso: python tools/import_pixellab_doors.py
 Entrada: tools/pixellab_raw/doors/door_<bioma>.png
@@ -13,7 +16,7 @@ import import_pixellab as importer  # noqa: E402
 import pngio  # noqa: E402
 
 
-BIOMES = ("lobby", "sewer", "streets", "rooftops")
+BIOMES = ("lobby",)
 names = []
 
 for biome in BIOMES:

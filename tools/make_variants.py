@@ -23,7 +23,7 @@ import import_pixellab as importer  # noqa: E402
 
 ROOT = gen.ROOT
 
-PLAYER_KEYS = ["idle", "walk", "attack1", "attack2", "attack3", "air_attack", "special", "jump",
+PLAYER_KEYS = ["idle", "walk", "run", "attack1", "attack2", "attack3", "air_attack", "special", "jump",
                "fall", "land", "hurt", "knockdown", "dead", "getup", "dodge", "block", "grab", "throw"]
 ENEMY_KEYS = ["idle", "walk", "telegraph", "attack", "hurt", "knockdown", "getup", "dead"]
 

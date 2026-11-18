@@ -74,17 +74,24 @@ function minimap_chunk_colour(_map, _ch) {
             return make_colour_rgb(150, 132, 210);
         case "junction":
             return make_colour_rgb(70, 150, 170);
+        case "shop":
+        case "reward":
+        case "rest":
+        case "challenge":
+            // sala ja usada fica apagada
+            var _rooms = global.run.special_rooms;
+            if (variable_struct_exists(_rooms, _ch.sid) && _rooms[$ _ch.sid].used) return make_colour_rgb(96, 102, 136);
+            return room_kind_colour(_ch.type);
     }
     return make_colour_rgb(72, 80, 112);
 }
 
 /// Desenha o mapa com a coluna 0 em _ox e a faixa 0 em _oy: cada celula tem _cw
 /// px de largura e cada faixa _rh px de altura. _labels escreve os tipos das
-/// portas e o chefe (mapa expandido).
+/// salas e o chefe (mapa expandido).
 function minimap_draw_level(_map, _ox, _oy, _cw, _rh, _labels) {
     var _kx = _cw / _map.cell_w;
     var _half = max(3, round(_rh * 0.14));   // meia altura da barra
-    var _rooms = global.run.special_rooms;
 
     // escadas: atras das barras, quando uma das pontas ja foi visitada
     for (var _i = 0; _i < array_length(_map.stairs); _i++) {
@@ -145,22 +152,18 @@ function minimap_draw_level(_map, _ox, _oy, _cw, _rh, _labels) {
             }
         }
 
-        if (_ch.door >= 0) {
-            // porta de sala interior: portinha acima da barra
-            var _room = _map.chunks[_ch.door];
-            var _dx = round(_ox + _ch.door_x * _kx);
-            var _used = variable_struct_exists(_rooms, _room.sid) && _rooms[$ _room.sid].used;
-            var _col = _used ? make_colour_rgb(96, 102, 136) : room_kind_colour(_room.room_kind);
-            var _top = _y - _half - 12;
+        if (chunk_is_room(_ch.type)) {
+            // sala: quadradinho com a cor do tipo acima da barra
+            var _col = minimap_chunk_colour(_map, _ch);
+            var _rx = round(_ox + _ch.room_x * _kx);
+            var _top = _y - _half - 11;
             draw_set_colour(c_black);
-            draw_rectangle(_dx - 5, _top - 1, _dx + 5, _y - _half, false);
+            draw_rectangle(_rx - 5, _top - 1, _rx + 5, _y - _half, false);
             draw_set_colour(_col);
-            draw_rectangle(_dx - 4, _top, _dx + 4, _y - _half - 1, false);
-            draw_set_colour(c_black);
-            draw_rectangle(_dx - 2, _top + 3, _dx + 2, _y - _half - 1, false);
+            draw_rectangle(_rx - 4, _top, _rx + 4, _y - _half - 1, false);
             if (_labels) {
                 draw_set_halign(fa_center);
-                hud_text(_dx, _top - 17, room_kind_label(_room.room_kind), _col);
+                hud_text(_rx, _top - 17, room_kind_label(_ch.type), _col);
             }
         }
     }

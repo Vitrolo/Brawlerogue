@@ -251,17 +251,11 @@ function choice_draw() {
 // ------------------------------------------------------ objetos interativos
 
 /// Cria os interativos da sala atual (chamado por stage_build).
-function interact_spawn_for_stage(_def, _seed, _persist = undefined) {
-    var _cx = _def.width * 0.5;
-    // perto da parede do fundo, no centro da sala
-    var _cy = _def.floor_top + 12;
-    var _used = !is_undefined(_persist) && _persist.used;
-    var _stock = is_undefined(_persist) ? undefined : _persist.stock;
+/// Interativos fixos de uma sala que nao e mapa (lobby) e armas do modulo.
+/// Os objetos das salas da run (loja, bau, descanso, desafio) nascem no proprio
+/// mapa, por run_level_spawn_room (scr_route).
+function interact_spawn_for_stage(_def) {
     switch (_def.kind) {
-        case "rest":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "rest", seed: _seed, used: _used, persistence_key: _def.sid }); break;
-        case "reward": instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "chest", seed: _seed, used: _used, persistence_key: _def.sid }); break;
-        case "shop":   instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "shop", seed: _seed, used: _used, stock: _stock, persistence_key: _def.sid }); break;
-        case "event":  instance_create_depth(_cx, _cy, 0, obj_interact, { kind: "event", seed: _seed, used: _used, persistence_key: _def.sid }); break;
         case "lobby":
             // encostados na parede, sobre o saco de pancada e os armarios do cenario
             instance_create_depth(105, _def.floor_top + 8, 0, obj_interact, { kind: "meta_shop" });
@@ -316,7 +310,7 @@ function interact_step() {
             choice_open("LOJA", stock, true, true, id);
             break;
         case "event":
-            choice_open("DESAFIO - " + global.stage.name, event_options(seed), false, false, id);
+            choice_open("DESAFIO - " + ((room_name != "") ? room_name : global.stage.name), event_options(seed), false, false, id);
             break;
         case "meta_shop":
             choice_open("TREINO", meta_shop_options(), true, true, id, "meta_shop");
@@ -401,21 +395,37 @@ function interact_draw() {
     draw_set_colour(c_white);
 }
 
-/// Arma na mao do jogador (placeholder: uma barra). Desenhada pelo obj_game.
-function player_draw_weapon() {
+/// Arma na mao do jogador: o mesmo sprite do item no chao (spr_weapon_*), preso pela
+/// empunhadura na mao da frente de cada quadro (tabela em scr_weapon_hand).
+/// Chamada por actor_draw logo depois do corpo, no escopo do obj_player.
+function player_draw_weapon(_alpha) {
     var _wp = global.run.weapon;
     if (is_undefined(_wp)) return;
+    if (state == PS.KNOCKDOWN || state == PS.DEAD || state == PS.GETUP) return;
+    var _hand = weapon_hand_offset(sprite_index, image_index);
+    if (is_undefined(_hand)) return;
     var _w = weapon_def(_wp.wid);
-    with (obj_player) {
-        if (state == PS.KNOCKDOWN || state == PS.DEAD || state == PS.GETUP) continue;
-        var _hx = round(x) + facing * 9;
-        var _hy = round(y - z) - 27;
-        draw_set_colour(_w.colour);
-        if (state == PS.ATTACK && atk_weapon && attack_anim_frame(atk, state_timer) == 1) {
-            draw_rectangle(min(_hx, _hx + facing * (_w.length + 12)), _hy - 1, max(_hx, _hx + facing * (_w.length + 12)), _hy + 1, false);
-        } else {
-            draw_rectangle(_hx - 1, _hy - _w.length, _hx + 1, _hy + 2, false);
-        }
+    var _spr = _w.sprite;
+    var _sc = draw_scale;
+
+    // mao no mundo: espelha pelo lado, escala e gira junto com a inclinacao (em volta dos pes)
+    var _lx = _hand[0] * facing * _sc;
+    var _ly = _hand[1] * _sc;
+    var _hx = round(x) + _lx * dcos(draw_angle) + _ly * dsin(draw_angle);
+    var _hy = round(y - z) - _lx * dsin(draw_angle) + _ly * dcos(draw_angle);
+
+    // o sprite ja aponta para cima e para a frente (~40 graus); no golpe com arma ele
+    // vai para tras na preparacao, fica na horizontal no acerto e desce na recuperacao
+    var _swing = 0;
+    if (state == PS.ATTACK && atk_weapon) {
+        _swing = [70, -40, -65][attack_anim_frame(atk, state_timer)];
     }
-    draw_set_colour(c_white);
+    var _ang = _swing * facing + draw_angle;
+
+    // empunhadura (grip, em pixels do sprite, na config da arma); gira com a arma
+    var _gx = (_w.grip[0] - sprite_get_xoffset(_spr)) * facing * _sc;
+    var _gy = (_w.grip[1] - sprite_get_yoffset(_spr)) * _sc;
+    var _rx = _gx * dcos(_ang) + _gy * dsin(_ang);
+    var _ry = -_gx * dsin(_ang) + _gy * dcos(_ang);
+    draw_sprite_ext(_spr, 0, round(_hx - _rx), round(_hy - _ry), facing * _sc, _sc, _ang, tint, _alpha);
 }

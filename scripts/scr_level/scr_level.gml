@@ -3,7 +3,7 @@
 ///
 /// O mapa de cada bioma vem de run_level_fill (scr_route), em global.run.maps:
 ///   map.grid[faixa][coluna]  indice do chunk na celula, ou -1 (ESPACO)
-///   map.links                conexoes walk/stairs/door (GRAFO); as escadas
+///   map.links                conexoes walk/stairs (GRAFO); as escadas
 ///                            guardam x_foot/y_foot (pe, na parede do fundo da
 ///                            faixa de baixo) e x_top/y_top (topo, na beirada da
 ///                            frente da faixa de cima)
@@ -171,9 +171,10 @@ function level_debug_draw() {
         draw_set_colour(c_white);
         draw_text(_ch.x1 + 6, _ch.oy + 6, string(_i) + " " + _ch.type + " c" + string(_ch.corridor)
             + (_ch.discovered ? " V" : (_ch.seen ? " ?" : "")));
-        if (_ch.door >= 0) {
+        if (chunk_is_room(_ch.type)) {
             draw_set_colour(c_aqua);
-            draw_line(_ch.door_x, _ch.floor_top - 60, _ch.door_x, _ch.floor_top);
+            draw_line(_ch.room_x, _ch.floor_top - 60, _ch.room_x, _ch.floor_top);
+            draw_text(_ch.room_x + 4, _ch.floor_top - 60, _ch.sid);
         }
     }
     for (var _i = 0; _i < array_length(_map.stairs); _i++) {

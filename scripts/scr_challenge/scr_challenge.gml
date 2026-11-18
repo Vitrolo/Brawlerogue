@@ -1,5 +1,5 @@
-/// Sala de desafio: uma arena fechada com uma regra especial. Fica nas salas do
-/// tipo "event" (entrada DESAFIO do corredor). O painel da sala oferece o desafio;
+/// Sala de desafio: uma arena fechada com uma regra especial. Fica nas celulas
+/// de desafio do mapa 2D (modulos "event" de scr_rooms). O painel da sala oferece o desafio;
 /// aceitar fecha a saida, traz os inimigos e liga a regra. Vencer da recompensa a
 /// escolher, moedas e fichas; falhar so perde o premio.
 ///
@@ -64,8 +64,24 @@ function challenge_start(_rule, _seed) {
         array_push(_types, enemy_type_variant(_biome.enemy_pool[irandom(array_length(_biome.enemy_pool) - 1)], _bi));
     }
     var _margin = CFG.encounter.offscreen_margin + CFG.encounter.offscreen_jitter;
+    var _lo = -_margin;
+    var _hi = _s.width + _margin;
+    var _map = level_current_map();
+    var _p = instance_find(obj_player, 0);
+    if (!is_undefined(_map) && _p != noone) {
+        // desafio numa sala do mapa 2D: a celula vira a arena (camera, escadas e
+        // limites travados) e os inimigos entram pelo corredor, nunca pela parede
+        var _cx = level_chunk_at(_map, _p.x, _p.y);
+        var _cor = stage_corridor();
+        if (_cx >= 0 && !is_undefined(_cor)) {
+            var _ch = _map.chunks[_cx];
+            cam_lock(_ch.x1, _ch.x2);
+            _lo = max(_cor.x1 + CFG.level.spawn_wall_margin, _ch.x1 - _margin);
+            _hi = min(_cor.x2 - CFG.level.spawn_wall_margin, _ch.x2 + _margin);
+        }
+    }
     for (var _i = 0; _i < array_length(_types); _i++) {
-        enemy_spawn_offscreen(_types[_i], false, -_margin, _s.width + _margin);
+        enemy_spawn_offscreen(_types[_i], false, _lo, _hi);
     }
     global.stage_rt.challenge = {
         state: "active",
@@ -93,6 +109,7 @@ function challenge_update() {
 
     if (_failed) {
         _c.state = "failed";
+        challenge_release();
         // os inimigos vao embora: o desafio nao vira armadilha
         with (obj_enemy) {
             fx_dust(x, y, 8);
@@ -106,10 +123,16 @@ function challenge_update() {
 
     if (enemies_alive() == 0) {
         _c.state = "won";
+        challenge_release();
         var _C = CFG.challenge;
         global.run.coins += _C.reward_coins;
         global.meta.chips += _C.reward_chips;
         toast_show("DESAFIO VENCIDO! +" + string(_C.reward_coins) + " moedas, +" + string(_C.reward_chips) + " fichas");
         choice_open("PREMIO DO DESAFIO - escolha um", reward_options(_c.seed + 101), false, false, noone);
     }
+}
+
+/// Fim do desafio numa sala do mapa 2D: destrava a celula.
+function challenge_release() {
+    if (!is_undefined(level_current_map()) && global.stage_rt.lock_active) cam_unlock();
 }

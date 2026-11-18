@@ -1,6 +1,7 @@
 """Importa a arte gerada no PixelLab para os sprites do GameMaker.
 
 Uso:  python tools/import_pixellab.py            (na raiz do projeto)
+      python tools/import_pixellab.py player:run (so os sprites pedidos)
 
 Entrada: tools/pixellab_raw/<personagem>/Idle/{rotations,animations}/... (ZIP do PixelLab
 ja extraido, so a direcao east) e tools/pixellab_raw/bg_<bioma>.png (cenarios).
@@ -39,6 +40,7 @@ CHARACTERS = {
     "player": {
         "idle": [("idle", i) for i in range(4)],
         "walk": [("walk", i) for i in range(6)],
+        "run": [("run", i) for i in range(6)],
         "attack1": [("jab", 0), ("jab", 1), ("jab", 2)],
         "attack2": [("cross", 3), ("cross", 5), ("cross", 1)],
         "attack3": [("kick", 2), ("kick", 3), ("kick", 5)],
@@ -165,12 +167,14 @@ def write_sprite(name, frames, origin):
     gen.write(f"sprites/{name}/{name}.yy", gen.sprite_yy(name, frame_ids, layer_id))
 
 
-def import_character(char, table):
+def import_character(char, table, only=None):
     rot = load_frame(char, "rot", 0)
     x0, _, x1, y1 = pngio.bbox(rot)
     ground = y1 + 1
     origin = ((x0 + x1 + 1) // 2, ground)
     for key, specs in sorted(table.items()):
+        if only and key not in only:
+            continue
         frames = [ground_align(load_frame(char, a, i), ground) for a, i in specs]
         write_sprite(f"spr_{char}_{key}", frames, origin)
     print(f"{char}: {len(table)} sprites, quadro {len(rot[0])}x{len(rot)}, origem {origin}")
@@ -214,6 +218,15 @@ def register_in_yyp(names):
 
 
 if __name__ == "__main__":
+    # "python tools/import_pixellab.py player:run" importa so os sprites pedidos
+    picks = [a.split(":", 1) for a in sys.argv[1:] if ":" in a]
+    if picks:
+        names = []
+        for char, key in picks:
+            import_character(char, CHARACTERS[char], only={key})
+            names.append(f"spr_{char}_{key}")
+        register_in_yyp(names)
+        sys.exit(0)
     for char, table in CHARACTERS.items():
         if os.path.isdir(char_dir(char)):
             import_character(char, table)

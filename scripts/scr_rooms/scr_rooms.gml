@@ -301,7 +301,9 @@ function room_pickup(_sid, _wid, _x, _y) {
     array_push(stage_get(_sid).pickups, { wid: _wid, x: _x, y: _y });
 }
 
-/// Sala sem combate (descanso, recompensa, loja, evento).
+/// Sala da run (descanso, recompensa, loja, evento = desafio). Nao e mais um
+/// lugar separado: so da o nome e a chave do estado salvo (seed das ofertas,
+/// usada, estoque) a uma celula de sala do mapa 2D (run_level_fill).
 function room_special(_sid, _bid, _name, _kind) {
     room_module_add({
         sid: _sid,
@@ -309,7 +311,6 @@ function room_special(_sid, _bid, _name, _kind) {
         biome: _bid,
         kind: _kind,
         role: "mid",
-        width: VIEW_W,
-        black_background: true
+        width: VIEW_W
     });
 }

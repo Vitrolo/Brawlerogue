@@ -252,21 +252,6 @@ function hud_draw() {
     var _seed_y = minimap_available() ? _gh - MINIMAP_H - 44 : _gh - 24;
     if (global.run.seed != 0) hud_text(_gw - 18, _seed_y, "SEED " + string(global.run.seed), make_colour_rgb(120, 128, 170));
 
-    // Nas salas escuras a identificacao continua sobre o portal. No corredor,
-    // o jogador ve o tipo no aviso de interacao, sem texto pairando no cenario.
-    if (global.stage.kind != "main_map") {
-        draw_set_halign(fa_center);
-        var _open = stage_exits_open();
-        var _camx = round(global.cam.x);
-        var _sx = _gw / VIEW_W;
-        var _sy = _gh / VIEW_H;
-        with (obj_door) {
-            if (room_kind == "") continue;
-            var _col = _open ? room_kind_colour(room_kind) : make_colour_rgb(120, 124, 150);
-            hud_text((x - _camx) * _sx, (y - 96) * _sy, room_kind_label(room_kind), _col);
-        }
-    }
-
     // faixa ao entrar em um bioma
     if (_rt.banner_timer > 0) {
         _rt.banner_timer--;
@@ -285,7 +270,7 @@ function hud_draw() {
     if (global.stage.kind == "lobby") {
         draw_set_halign(fa_left);
         var _l = function(_a) { return input_action_label(_a); };
-        hud_text(18, _gh - 44, "Mover: WASD   Pular: " + _l(ACT.JUMP) + "   Atacar: " + _l(ACT.ATTACK) + "   Bloquear: " + _l(ACT.BLOCK) + " (segurar)");
+        hud_text(18, _gh - 44, "Mover: WASD   Correr: " + _l(ACT.RUN) + " (segurar)   Pular: " + _l(ACT.JUMP) + "   Atacar: " + _l(ACT.ATTACK) + "   Bloquear: " + _l(ACT.BLOCK) + " (segurar)");
         hud_text(18, _gh - 24, "Esquivar: " + _l(ACT.DODGE) + "   Especial: " + _l(ACT.SPECIAL) + "   Agarrar/arremessar: " + _l(ACT.GRAB) + "   Interagir: " + _l(ACT.INTERACT) + "   Pausa: " + _l(ACT.PAUSE));
         hud_text(18, 64, "FICHAS: " + string(global.meta.chips), _cyan);
         hud_text(18, 82, "Personagem: " + player_char().name, make_colour_rgb(170, 180, 220));

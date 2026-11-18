@@ -20,6 +20,7 @@ function actor_init(_hp_max, _body_w, _body_h) {
     team = TEAM.ENEMY;
     image_speed = 0;
     draw_scale = 1;
+    draw_angle = 0; // inclinacao do sprite em graus, em volta dos pes (corrida)
     tint = c_white; // cor multiplicada no sprite (elites, avisos)
     // Substituidos por jogador/inimigo.
     on_hit = function(_hit) { return HITRES.IGNORED; };
@@ -82,6 +83,8 @@ function actor_draw() {
     var _alpha = 1;
     if (invuln > 0 && (invuln div 3) mod 2 == 0) _alpha = 0.4; // pisca enquanto invulneravel
     if (flash > 0) gpu_set_fog(true, c_white, 0, 0);            // clarao branco ao levar golpe
-    draw_sprite_ext(sprite_index, image_index, round(x), round(y - z), facing * draw_scale, draw_scale, 0, tint, _alpha);
+    draw_sprite_ext(sprite_index, image_index, round(x), round(y - z), facing * draw_scale, draw_scale, draw_angle, tint, _alpha);
+    // arma segurada: logo depois do corpo, para respeitar a ordem de profundidade e o clarao
+    if (object_index == obj_player) player_draw_weapon(_alpha);
     if (flash > 0) gpu_set_fog(false, c_white, 0, 0);
 }

@@ -8,9 +8,10 @@
 ///            ocupa a celula, ou -1. Uma celula tem CFG.level.cell_w px de
 ///            largura (um tile do cenario) e uma tela de altura. A linha 0 e o
 ///            corredor principal; as negativas ficam acima, as positivas abaixo.
-///   GRAFO  - lv.links: "walk" liga vizinhos da mesma linha (a fica a esquerda),
-///            "stairs" liga a mesma coluna em linhas vizinhas (a fica embaixo) e
-///            "door" liga um chunk a uma sala interior (no fora da grade).
+///   GRAFO  - lv.links: "walk" liga vizinhos da mesma linha (a fica a esquerda) e
+///            "stairs" liga a mesma coluna em linhas vizinhas (a fica embaixo).
+/// As salas (loja, tesouro, descanso, desafio) sao chunks da grade como os
+/// outros: o jogador entra nelas andando pelo corredor, sem porta.
 /// level_validate confere que as duas concordam antes de o nivel ser aceito.
 ///
 /// Regras de escrita deste arquivo (o teste converte o GML para JavaScript):
@@ -21,29 +22,41 @@
 /// Registro dos tipos de chunk. Para um tipo novo: uma linha aqui e o conteudo
 /// dele em run_level_fill (scr_route).
 ///   cat      - categoria (horizontal, vertical, combat, exploration, special, interior)
-///   sockets  - aberturas aceitas: left, right, up, down, door
+///   sockets  - aberturas aceitas: left, right, up, down
 ///   combat   - tem horda: trava a camera ao entrar
 ///   end_only - so pode ficar na ponta de um corredor (uma unica passagem)
-///   off_grid - nao ocupa celula (salas interiores)
+///   room     - sala com objeto proprio (loja, tesouro, descanso, desafio)
+///   off_grid - nao ocupa celula (nenhum tipo usa hoje; fica para nos fora da grade)
 function chunk_types_init() {
     global.chunk_types = {};
     chunk_type_define("start",       { cat: "horizontal",  sockets: ["right"] });
-    chunk_type_define("corridor",    { cat: "horizontal",  sockets: ["left", "right", "door"] });
+    chunk_type_define("corridor",    { cat: "horizontal",  sockets: ["left", "right"] });
     chunk_type_define("junction",    { cat: "vertical",    sockets: ["left", "right", "up", "down"] });
-    chunk_type_define("combat",      { cat: "combat",      sockets: ["left", "right", "door"], combat: true });
-    chunk_type_define("exit_combat", { cat: "combat",      sockets: ["left", "right", "door"], combat: true });
+    chunk_type_define("combat",      { cat: "combat",      sockets: ["left", "right"], combat: true });
+    chunk_type_define("exit_combat", { cat: "combat",      sockets: ["left", "right"], combat: true });
     chunk_type_define("horde",       { cat: "combat",      sockets: ["left", "right"], combat: true, end_only: true });
-    chunk_type_define("dead_end",    { cat: "exploration", sockets: ["left", "right", "door"], end_only: true });
+    chunk_type_define("dead_end",    { cat: "exploration", sockets: ["left", "right"], end_only: true });
     chunk_type_define("boss",        { cat: "special",     sockets: ["left"], combat: true });
-    chunk_type_define("interior",    { cat: "interior",    sockets: ["door"], off_grid: true });
+    // salas: celulas do corredor com o objeto da sala (banca, bau, banco, painel)
+    chunk_type_define("shop",        { cat: "interior",    sockets: ["left", "right"], room: true });
+    chunk_type_define("reward",      { cat: "interior",    sockets: ["left", "right"], room: true });
+    chunk_type_define("rest",        { cat: "interior",    sockets: ["left", "right"], room: true });
+    chunk_type_define("challenge",   { cat: "special",     sockets: ["left", "right"], room: true });
 }
 
 function chunk_type_define(_name, _def) {
     _def.name = _name;
     if (!variable_struct_exists(_def, "combat")) _def.combat = false;
     if (!variable_struct_exists(_def, "end_only")) _def.end_only = false;
+    if (!variable_struct_exists(_def, "room")) _def.room = false;
     if (!variable_struct_exists(_def, "off_grid")) _def.off_grid = false;
     global.chunk_types[$ _name] = _def;
+}
+
+/// O chunk e uma sala (loja, tesouro, descanso ou desafio).
+function chunk_is_room(_type) {
+    var _t = chunk_type(_type);
+    return !is_undefined(_t) && _t.room;
 }
 
 function chunk_type(_name) {
@@ -68,6 +81,7 @@ function level_new(_cols, _max_depth) {
         links: [],
         corridors: [],
         branches: [],   // corredores dos ramos (listas de indices), na ordem em que nasceram
+        rooms: [],      // salas deste nivel: [tipo, onde] (onde: main, branch ou any)
         start: -1,
         boss: -1,
         linear: false
@@ -80,8 +94,7 @@ function level_cell(_lv, _row, _col) {
     return _lv.grid[_row - _lv.row_min][_col];
 }
 
-/// Cria um chunk. Os de tipo off_grid (salas interiores) guardam a linha e a
-/// coluna do chunk da porta so como referencia, sem ocupar a celula.
+/// Cria um chunk na celula (linha, coluna). Tipos off_grid nao ocupam a celula.
 function level_add_chunk(_lv, _type, _row, _col) {
     var _ix = array_length(_lv.chunks);
     var _on_grid = !chunk_type(_type).off_grid;
@@ -93,14 +106,13 @@ function level_add_chunk(_lv, _type, _row, _col) {
         on_grid: _on_grid,
         links: [],
         corridor: -1,
-        room_kind: ""   // salas interiores: shop, reward, rest, challenge
+        room_kind: ""   // reservado (as salas usam o proprio tipo)
     });
     if (_on_grid) _lv.grid[_row - _lv.row_min][_col] = _ix;
     return _ix;
 }
 
-/// Liga dois chunks. Convencoes: "walk" com _a a esquerda, "stairs" com _a
-/// embaixo, "door" com _a no corredor e _b na sala interior.
+/// Liga dois chunks. Convencoes: "walk" com _a a esquerda, "stairs" com _a embaixo.
 function level_link(_lv, _a, _b, _kind) {
     var _ix = array_length(_lv.links);
     array_push(_lv.links, { index: _ix, a: _a, b: _b, kind: _kind });
@@ -119,7 +131,7 @@ function level_link_dir(_link, _ix) {
         case "walk":   return (_ix == _link.a) ? "right" : "left";
         case "stairs": return (_ix == _link.a) ? "up" : "down";
     }
-    return "door";
+    return "";
 }
 
 function level_socket_ok(_ch, _dir) {
@@ -195,15 +207,39 @@ function level_build(_cfg) {
 /// Uma tentativa. _linear = true gera so o corredor principal.
 function level_generate(_cfg, _linear) {
     var _cols = irandom_range(_cfg.main_cells[0], _cfg.main_cells[1]);
+    var _rooms = level_room_list(_cfg);
+    // linear: tudo no principal (inicio, combates contando a saida, salas e chefe)
+    if (_linear) _cols = max(_cols, 2 + _cfg.main_combats + array_length(_rooms));
     var _lv = level_new(_cols, _cfg.max_depth);
     _lv.linear = _linear;
+    _lv.rooms = _rooms;
     level_place_main(_lv);
     if (!_linear) level_generate_branches(_lv, _cfg);
+    level_assign_ends(_lv, _cfg);
+    level_assign_rooms(_lv, _cfg);
     level_assign_main(_lv, _cfg);
-    level_assign_branches(_lv, _cfg);
-    level_assign_interiors(_lv, _cfg);
+    level_assign_branch_combats(_lv, _cfg);
     level_corridors_build(_lv);
     return _lv;
+}
+
+/// Salas do nivel: as de interiors_main no principal, as de interiors_branch de
+/// preferencia nos ramos e o descanso com rest_chance. Retorna [[tipo, onde], ...].
+function level_room_list(_cfg) {
+    var _out = [];
+    for (var _i = 0; _i < array_length(_cfg.interiors_main); _i++) array_push(_out, [_cfg.interiors_main[_i], "main"]);
+    for (var _i = 0; _i < array_length(_cfg.interiors_branch); _i++) array_push(_out, [_cfg.interiors_branch[_i], "branch"]);
+    if (random(1) < _cfg.rest_chance) array_push(_out, ["rest", "any"]);
+    return _out;
+}
+
+/// Salas que precisam de celula no principal.
+function level_main_room_count(_lv) {
+    var _n = 0;
+    for (var _i = 0; _i < array_length(_lv.rooms); _i++) {
+        if (_lv.rooms[_i][1] == "main") _n++;
+    }
+    return _n;
 }
 
 /// Corredor principal na linha 0: inicio, celulas livres, saida e chefe.
@@ -221,9 +257,9 @@ function level_place_main(_lv) {
     _lv.chunks[level_cell(_lv, 0, _lv.cols - 2)].type = "exit_combat";
 }
 
-/// Escadas que o principal comporta sem tirar lugar dos combates dele.
+/// Escadas que o principal comporta sem tirar lugar dos combates e das salas dele.
 function level_main_junction_cap(_lv, _cfg) {
-    return (_lv.cols - 3) - (_cfg.main_combats - 1);
+    return (_lv.cols - 3) - (_cfg.main_combats - 1) - level_main_room_count(_lv);
 }
 
 function level_main_junctions(_lv) {
@@ -403,9 +439,9 @@ function level_assign_main(_lv, _cfg) {
     }
 }
 
-/// Pontas dos ramos viram becos ou hordas (a primeira beco, a segunda horda);
-/// o resto dos ramos pode ganhar combate.
-function level_assign_branches(_lv, _cfg) {
+/// Pontas dos ramos viram becos ou hordas (a primeira beco, a segunda horda,
+/// as demais por sorteio).
+function level_assign_ends(_lv, _cfg) {
     var _ends = [];
     for (var _i = 0; _i < array_length(_lv.chunks); _i++) {
         var _ch = _lv.chunks[_i];
@@ -418,6 +454,10 @@ function level_assign_branches(_lv, _cfg) {
         if (_k == 1 || (_k > 1 && random(1) < _cfg.horde_chance)) _type = "horde";
         _lv.chunks[_ends[_k]].type = _type;
     }
+}
+
+/// Celulas livres que sobram nos ramos podem virar combate.
+function level_assign_branch_combats(_lv, _cfg) {
     for (var _i = 0; _i < array_length(_lv.chunks); _i++) {
         var _ch = _lv.chunks[_i];
         if (_ch.on_grid && _ch.row != 0 && _ch.type == "corridor" && random(1) < _cfg.branch_combat_chance) {
@@ -426,52 +466,60 @@ function level_assign_branches(_lv, _cfg) {
     }
 }
 
-/// Portas das salas interiores. Cada sala vira um no fora da grade ligado por
-/// "door" ao chunk da porta: as de interiors_main no principal, as de
-/// interiors_branch de preferencia nos ramos, e o descanso com rest_chance.
-function level_assign_interiors(_lv, _cfg) {
-    var _todo = [];
-    for (var _i = 0; _i < array_length(_cfg.interiors_main); _i++) array_push(_todo, [_cfg.interiors_main[_i], "main"]);
-    for (var _i = 0; _i < array_length(_cfg.interiors_branch); _i++) array_push(_todo, [_cfg.interiors_branch[_i], "branch"]);
-    if (random(1) < _cfg.rest_chance) array_push(_todo, ["rest", "any"]);
-
-    for (var _i = 0; _i < array_length(_todo); _i++) {
-        var _kind = _todo[_i][0];
-        var _where = _todo[_i][1];
-        var _host = level_pick_door_host(_lv, _where);
-        if (_host < 0 && _where != "main") _host = level_pick_door_host(_lv, "main");
-        if (_host < 0) continue; // a validacao recusa o nivel se faltar uma obrigatoria
-        var _h = _lv.chunks[_host];
-        var _room = level_add_chunk(_lv, "interior", _h.row, _h.col);
-        _lv.chunks[_room].room_kind = _kind;
-        level_link(_lv, _host, _room, "door");
+/// Salas do nivel (lv.rooms): cada uma toma uma celula do corredor. As do
+/// principal ficam no principal; as dos ramos preferem o fundo de um beco; o
+/// descanso ("any") prefere os ramos. Uma sala de ramo so cai no principal se
+/// sobrar celula alem dos combates dele.
+function level_assign_rooms(_lv, _cfg) {
+    for (var _i = 0; _i < array_length(_lv.rooms); _i++) {
+        var _kind = _lv.rooms[_i][0];
+        var _where = _lv.rooms[_i][1];
+        var _host = -1;
+        if (_where == "main") {
+            _host = level_pick_room_host(_lv, "main");
+        } else {
+            _host = level_pick_room_host(_lv, "branch");
+            if (_host < 0 && level_main_free(_lv) > _cfg.main_combats - 1 + level_main_rooms_left(_lv, _i)) {
+                _host = level_pick_room_host(_lv, "main");
+            }
+        }
+        if (_host < 0) continue; // a validacao recusa o nivel se faltar uma sala obrigatoria
+        _lv.chunks[_host].type = _kind;
     }
 }
 
-/// Chunk que recebe a porta de uma sala interior: aceita porta, ainda nao tem
-/// uma e fica onde foi pedido (_where: "main", "branch" ou "any"). Prefere beco,
-/// depois corredor livre, depois combate; "any" prefere os ramos.
-function level_pick_door_host(_lv, _where) {
-    var _best = -1;
-    var _best_score = -1;
+/// Celulas livres (corredor) do principal, entre o inicio e a saida.
+function level_main_free(_lv) {
+    var _n = 0;
+    for (var _c = 1; _c <= _lv.cols - 3; _c++) {
+        if (_lv.chunks[level_cell(_lv, 0, _c)].type == "corridor") _n++;
+    }
+    return _n;
+}
+
+/// Salas do principal que ainda vao ser colocadas depois da sala _i.
+function level_main_rooms_left(_lv, _i) {
+    var _n = 0;
+    for (var _k = _i + 1; _k < array_length(_lv.rooms); _k++) {
+        if (_lv.rooms[_k][1] == "main") _n++;
+    }
+    return _n;
+}
+
+/// Celula sorteada para uma sala: corredor livre ou beco, em "main" ou "branch"
+/// (uma sala no fundo de um beco vira o fim daquele caminho).
+function level_pick_room_host(_lv, _where) {
     var _order = level_shuffle(level_range(array_length(_lv.chunks)));
     for (var _i = 0; _i < array_length(_order); _i++) {
         var _ix = _order[_i];
         var _ch = _lv.chunks[_ix];
-        if (!_ch.on_grid || !level_socket_ok(_ch, "door") || level_link_count(_lv, _ix, "door") > 0) continue;
+        if (!_ch.on_grid || (_ch.type != "corridor" && _ch.type != "dead_end")) continue;
         var _main = (_ch.row == 0);
         if (_where == "main" && !_main) continue;
         if (_where == "branch" && _main) continue;
-        var _score = 1;
-        if (_ch.type == "dead_end") _score = 3;
-        else if (_ch.type == "corridor") _score = 2;
-        if (_where == "any" && !_main) _score += 3;
-        if (_score > _best_score) {
-            _best = _ix;
-            _best_score = _score;
-        }
+        return _ix;
     }
-    return _best;
+    return -1;
 }
 
 /// Corredores: sequencias de chunks da mesma linha ligados por "walk".
@@ -565,9 +613,6 @@ function level_validate(_lv, _cfg) {
                 if (_A.type != "junction" || _B.type != "junction") return "escada " + string(_l) + " fora de junction";
                 _walk_stairs++;
                 break;
-            case "door":
-                if (!_A.on_grid || _B.on_grid || _B.type != "interior") return "porta " + string(_l) + " invalida";
-                break;
             default:
                 return "link " + string(_l) + " de tipo desconhecido";
         }
@@ -578,15 +623,11 @@ function level_validate(_lv, _cfg) {
     // 3) regras por chunk
     for (var _i = 0; _i < _n; _i++) {
         var _ch = _lv.chunks[_i];
-        if (!_ch.on_grid) {
-            if (array_length(_ch.links) != 1 || level_link_count(_lv, _i, "door") != 1) return "sala interior sem porta unica";
-            continue;
-        }
+        if (!_ch.on_grid) return "chunk " + string(_i) + " fora da grade";
         var _right = level_cell(_lv, _ch.row, _ch.col + 1);
         if (_right >= 0 && !level_has_link(_lv, _i, _right, "walk")) return "corredores encostados sem passagem";
         var _stairs = level_link_count(_lv, _i, "stairs");
         if ((_ch.type == "junction") != (_stairs == 1)) return "escada e junction nao combinam no chunk " + string(_i);
-        if (level_link_count(_lv, _i, "door") > 1) return "mais de uma porta no chunk " + string(_i);
         if (chunk_type(_ch.type).end_only && level_link_count(_lv, _i, "walk") != 1) return _ch.type + " fora da ponta";
         if (_ch.type == "junction" && _ch.row == 0) {
             var _nb = level_cell(_lv, 0, _ch.col + 1);
@@ -640,7 +681,7 @@ function level_validate(_lv, _cfg) {
         if (array_length(_roots) < _cfg.branches[0] || array_length(_roots) > _cfg.branches[1]) return "ramos: " + string(array_length(_roots));
     }
 
-    // 7) salas interiores obrigatorias, uma de cada
+    // 7) salas obrigatorias, uma de cada; descanso no maximo uma
     var _need = [];
     for (var _i = 0; _i < array_length(_cfg.interiors_main); _i++) array_push(_need, _cfg.interiors_main[_i]);
     for (var _i = 0; _i < array_length(_cfg.interiors_branch); _i++) array_push(_need, _cfg.interiors_branch[_i]);
@@ -648,7 +689,7 @@ function level_validate(_lv, _cfg) {
         var _count = 0;
         for (var _i = 0; _i < _n; _i++) {
             var _ch = _lv.chunks[_i];
-            if (_ch.type == "interior" && _ch.room_kind == _need[_q]) _count++;
+            if (_ch.type == _need[_q]) _count++;
         }
         if (_count != 1) return "sala " + _need[_q] + " aparece " + string(_count) + " vezes";
     }
@@ -656,8 +697,11 @@ function level_validate(_lv, _cfg) {
         var _kind = _cfg.interiors_main[_i];
         for (var _j = 0; _j < _n; _j++) {
             var _ch = _lv.chunks[_j];
-            if (_ch.type == "interior" && _ch.room_kind == _kind && _ch.row != 0) return "sala " + _kind + " fora do principal";
+            if (_ch.type == _kind && _ch.row != 0) return "sala " + _kind + " fora do principal";
         }
     }
+    var _rests = 0;
+    for (var _i = 0; _i < _n; _i++) if (_lv.chunks[_i].type == "rest") _rests++;
+    if (_rests > 1) return "descanso repetido";
     return "";
 }
